@@ -184,6 +184,8 @@ export class TradeService implements OnDestroy {
         partnerReady: false,
         handingOver: false,
       });
+      // The invitation has been answered; don't leave its Accept/Decline buttons on screen.
+      this.popupNotificationService.clearMessages();
       this.uiRepository.openView(View.TRADE);
       this.sound.play(Sound.Ok);
     });

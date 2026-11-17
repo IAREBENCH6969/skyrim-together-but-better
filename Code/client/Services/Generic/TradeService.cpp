@@ -16,6 +16,7 @@
 #include <Games/References.h>
 #include <PlayerCharacter.h>
 
+#include <DInputHook.hpp>
 #include <OverlayApp.hpp>
 
 namespace
@@ -147,6 +148,28 @@ int32_t CountMatching(const PlayerCharacter& acPlayer, const Inventory::Entry& a
     return count;
 }
 
+// Opens the overlay with the mouse cursor, the same way F2 does, so the trade window shows up on both screens
+// (the player who was invited may have accepted from the notification, or not be looking at the overlay at all).
+void ShowOverlay() noexcept
+{
+    auto& overlay = World::Get().GetOverlayService();
+    auto* pApp = overlay.GetOverlayApp();
+    if (!pApp || !overlay.GetInGame() || overlay.GetActive())
+        return;
+    auto pClient = pApp->GetClient();
+    if (!pClient)
+        return;
+    auto pRenderer = pClient->GetOverlayRenderHandler();
+    if (!pRenderer)
+        return;
+
+    TiltedPhoques::DInputHook::Get().SetEnabled(true);
+    overlay.SetActive(true);
+    pRenderer->SetCursorVisible(true);
+    while (ShowCursor(FALSE) >= 0) // keep the Windows cursor hidden, the overlay draws its own
+        ;
+}
+
 bool SameItem(const Inventory::Entry& acLhs, const Inventory::Entry& acRhs) noexcept
 {
     return acLhs.BaseId == acRhs.BaseId && acLhs.CustomAlchemy == acRhs.CustomAlchemy;
@@ -235,6 +258,7 @@ void TradeService::OnNotifyTrade(const NotifyTrade& acMessage) noexcept
         pArguments->SetInt(0, m_partnerId);
         pArguments->SetString(1, DescribeItems(m_tradable).c_str());
         Execute("tradeOpened", pArguments);
+        ShowOverlay();
         break;
     }
     case TradeEvent::PartnerOffer:
