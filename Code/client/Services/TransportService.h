@@ -34,6 +34,11 @@ struct TransportService : Client
     void OnUpdate() override;
 
     [[nodiscard]] bool IsOnline() const noexcept { return m_connected; }
+
+    // Same as Client::Connect, and remembers the endpoint (SteamJoinService checks whether it is this PC).
+    using Client::Connect;
+    bool Connect(const std::string& acEndpoint) noexcept;
+    [[nodiscard]] const std::string& GetEndpoint() const noexcept { return m_endpoint; }
     void SetServerPassword(const std::string& acPassword) noexcept { m_serverPassword = acPassword; }
     const uint32_t& GetLocalPlayerId() const noexcept { return m_localPlayerId; }
 
@@ -60,6 +65,7 @@ private:
     entt::dispatcher& m_dispatcher;
     bool m_connected;
     String m_serverPassword{};
+    std::string m_endpoint{};
     uint32_t m_localPlayerId;
     double m_lastPollTime{};
 
