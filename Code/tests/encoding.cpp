@@ -13,6 +13,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <Messages/ReviveRequest.h>
+#include <Messages/NotifyRevive.h>
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/ServerMessageFactory.h>
 #include <Structs/Vector2_NetQuantize.h>
@@ -612,5 +614,37 @@ TEST_CASE("StringCache", "[encoding.string_cache]")
         recvUpdate.DeserializeRaw(reader);
 
         REQUIRE(update == recvUpdate);
+    }
+}
+
+TEST_CASE("Revive messages", "[encoding.packets]")
+{
+    {
+        Buffer buff(100);
+        ReviveRequest sendMessage, recvMessage;
+        sendMessage.Action = ReviveAction::Revive;
+        sendMessage.PlayerId = 12;
+        sendMessage.Health = 25.5f;
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
+        REQUIRE(sendMessage == recvMessage);
+    }
+    {
+        Buffer buff(100);
+        NotifyRevive sendMessage, recvMessage;
+        sendMessage.Event = ReviveEvent::Revived;
+        sendMessage.PlayerId = 3;
+        sendMessage.Health = 50.f;
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
+        REQUIRE(sendMessage == recvMessage);
     }
 }

@@ -38,6 +38,8 @@ Console::Setting bEnableGreetings{"Gameplay:bEnableGreetings", "Enables NPC gree
 Console::Setting bEnablePvp{"Gameplay:bEnablePvp", "Enables pvp", false};
 Console::Setting bSyncPlayerHomes{"Gameplay:bSyncPlayerHomes", "Sync chests and displays in player homes and other NoResetZones", false};
 Console::Setting bEnableDeathSystem{"Gameplay:bEnableDeathSystem", "Enables the custom multiplayer death system. Only disable it if you use another mod that replaces death", true};
+Console::Setting bEnableRevive{"Gameplay:bEnableRevive", "Lets players revive a downed player by using a healing potion on them (needs the death system)", true};
+Console::Setting fReviveWindow{"Gameplay:fReviveWindow", "Seconds a downed player waits for a revive before respawning as usual (5 to 300)", 30.0f};
 Console::Setting uTimeScale{"Gameplay:uTimeScale", "How many seconds pass ingame for every real second (0 to 1000). Changing this can make the game unstable", 20u};
 Console::Setting bSyncPlayerCalendar{"Gameplay:bSyncPlayerCalendar", "Syncs up all player calendars to be the same day, month, and year. This uses the date of the player with the furthest ahead date at connection.", false};
 Console::Setting bAutoPartyJoin{"Gameplay:bAutoPartyJoin", "Join parties automatically, as long as there is only one party in the server", true};
@@ -152,6 +154,7 @@ ServerSettings GetSettings()
     settings.SyncPlayerCalendar = bSyncPlayerCalendar;
     settings.AutoPartyJoin = bAutoPartyJoin;
     settings.ConsoleCommandsAllowed = bAllowConsoleCommands;
+    settings.ReviveWindow = bEnableRevive && bEnableDeathSystem ? std::clamp(fReviveWindow.as_float(), 5.f, 300.f) : 0.f;
     return settings;
 }
 
