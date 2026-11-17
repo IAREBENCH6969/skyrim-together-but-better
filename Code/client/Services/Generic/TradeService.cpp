@@ -148,26 +148,27 @@ int32_t CountMatching(const PlayerCharacter& acPlayer, const Inventory::Entry& a
     return count;
 }
 
-// Opens the overlay with the mouse cursor, the same way F2 does, so the trade window shows up on both screens
-// (the player who was invited may have accepted from the notification, or not be looking at the overlay at all).
-void ShowOverlay() noexcept
+// Opens or closes the overlay with the mouse cursor, the same way F2 does. Returns true if it changed anything.
+// The trade window only shows while the overlay is open, and the invited player may not have it open.
+bool SetOverlayVisible(bool aVisible) noexcept
 {
     auto& overlay = World::Get().GetOverlayService();
     auto* pApp = overlay.GetOverlayApp();
-    if (!pApp || !overlay.GetInGame() || overlay.GetActive())
-        return;
+    if (!pApp || !overlay.GetInGame() || overlay.GetActive() == aVisible)
+        return false;
     auto pClient = pApp->GetClient();
     if (!pClient)
-        return;
+        return false;
     auto pRenderer = pClient->GetOverlayRenderHandler();
     if (!pRenderer)
-        return;
+        return false;
 
-    TiltedPhoques::DInputHook::Get().SetEnabled(true);
-    overlay.SetActive(true);
-    pRenderer->SetCursorVisible(true);
+    TiltedPhoques::DInputHook::Get().SetEnabled(aVisible);
+    overlay.SetActive(aVisible);
+    pRenderer->SetCursorVisible(aVisible);
     while (ShowCursor(FALSE) >= 0) // keep the Windows cursor hidden, the overlay draws its own
         ;
+    return true;
 }
 
 bool SameItem(const Inventory::Entry& acLhs, const Inventory::Entry& acRhs) noexcept
@@ -258,7 +259,8 @@ void TradeService::OnNotifyTrade(const NotifyTrade& acMessage) noexcept
         pArguments->SetInt(0, m_partnerId);
         pArguments->SetString(1, DescribeItems(m_tradable).c_str());
         Execute("tradeOpened", pArguments);
-        ShowOverlay();
+        // Remember whether the trade opened the overlay, so it can close it again afterwards.
+        m_openedOverlay = SetOverlayVisible(true);
         break;
     }
     case TradeEvent::PartnerOffer:
@@ -293,11 +295,15 @@ void TradeService::OnNotifyTrade(const NotifyTrade& acMessage) noexcept
     case TradeEvent::Closed:
     {
         spdlog::info("[TradeService]: trade with player {} closed, reason {}", acMessage.PartnerId, static_cast<int>(acMessage.Reason));
+        const bool cCloseOverlay = m_openedOverlay;
         Reset();
         auto pArguments = CefListValue::Create();
         pArguments->SetInt(0, static_cast<int>(acMessage.Reason));
         pArguments->SetInt(1, acMessage.PartnerId);
         Execute("tradeClosed", pArguments);
+        // Back to the game, unless the player had the overlay open already.
+        if (cCloseOverlay)
+            SetOverlayVisible(false);
         break;
     }
     default: break;
@@ -510,6 +516,7 @@ void TradeService::Reset() noexcept
 {
     m_partnerId = 0;
     m_handingOver = false;
+    m_openedOverlay = false;
     m_tradable.clear();
     m_offerCounts.clear();
 }
