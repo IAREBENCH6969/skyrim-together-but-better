@@ -20,6 +20,7 @@
 #include <Magic/EffectItem.h>
 #include <PlayerCharacter.h>
 #include <Interface/UI.h>
+#include <AI/Movement/PlayerControls.h>
 #include <Services/OverlayService.h>
 #include <Services/ImguiService.h>
 #include <BSGraphics/BSGraphicsRenderer.h>
@@ -216,13 +217,38 @@ TESBoundObject* ReviveService::FindHealingPotion(float& aHealth) noexcept
 
 void ReviveService::OnUpdate(const UpdateEvent&) noexcept
 {
-    if (m_downedPlayers.empty())
-        return;
-
-    // A fresh press of Activate next to a downed player revives them.
     const bool cActivateDown = (GetAsyncKeyState(kActivateKey) & 0x8000) != 0;
-    if (cActivateDown && !m_activateWasDown && PlayerIsInGame())
-        TryReviveNearby();
+
+    // Give the game its activation back a moment after E was let go.
+    if (m_activationBlocked)
+    {
+        const auto cNow = std::chrono::steady_clock::now();
+        if (cActivateDown)
+            m_unblockAt = cNow + 300ms;
+        else if (cNow >= m_unblockAt)
+        {
+            if (PlayerControls* pControls = PlayerControls::GetInstance())
+                pControls->SetActivateEnabled(true);
+            m_activationBlocked = false;
+        }
+    }
+
+    if (m_downedPlayers.empty())
+    {
+        m_activateWasDown = cActivateDown;
+        return;
+    }
+
+    // A fresh press of Activate next to a downed player revives them; that press is used up.
+    if (cActivateDown && !m_activateWasDown && PlayerIsInGame() && TryReviveNearby())
+    {
+        if (PlayerControls* pControls = PlayerControls::GetInstance())
+        {
+            pControls->SetActivateEnabled(false);
+            m_activationBlocked = true;
+            m_unblockAt = std::chrono::steady_clock::now() + 300ms;
+        }
+    }
     m_activateWasDown = cActivateDown;
 
     const auto cNow = std::chrono::steady_clock::now();

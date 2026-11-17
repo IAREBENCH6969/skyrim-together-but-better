@@ -65,6 +65,10 @@ private:
     TiltedPhoques::Map<uint32_t, std::chrono::steady_clock::time_point> m_nextHint;
     std::chrono::steady_clock::time_point m_nextUpdate{};
     bool m_activateWasDown{};
+    // An E press was used for a revive: the game's own activation stays off until E is let go, so the same press
+    // doesn't also open the door or chest behind the downed player (Skyrim activates on release).
+    bool m_activationBlocked{};
+    std::chrono::steady_clock::time_point m_unblockAt{};
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_disconnectedConnection;
