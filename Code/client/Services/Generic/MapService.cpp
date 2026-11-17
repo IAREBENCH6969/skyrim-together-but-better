@@ -12,6 +12,8 @@
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Services/ImguiService.h>
 #include <Services/PartyService.h>
+#include <Components.h>
+#include <Actor.h>
 
 #include <BSGraphics/BSGraphicsRenderer.h>
 #include <Camera/PlayerCamera.h>
@@ -60,17 +62,23 @@ bool ProjectWithCamera(const NiCamera* apCamera, const NiPoint3& acPoint, NiPoin
                                         &aScreen.z, 1e-5f);
 }
 
-// One colour per player, muted like Skyrim's own UI (no neon), readable on the compass and the snowy map.
-ImU32 PlayerColor(uint32_t aPlayerId) noexcept
-{
-    static constexpr ImU32 s_colors[] = {IM_COL32(212, 175, 92, 255),  // old gold
-                                         IM_COL32(112, 164, 204, 255), // steel blue
-                                         IM_COL32(196, 92, 78, 255),   // dragon's-blood red
-                                         IM_COL32(128, 172, 104, 255), // moss green
-                                         IM_COL32(168, 128, 196, 255), // amethyst
-                                         IM_COL32(204, 134, 82, 255)}; // copper
-    return s_colors[aPlayerId % (sizeof(s_colors) / sizeof(s_colors[0]))];
-}
+// Player colours, muted like Skyrim's own UI (no neon), readable on the compass and the snowy map, and far enough
+// apart to tell twelve players apart.
+constexpr ImU32 kPlayerColors[] = {
+    IM_COL32(212, 175, 92, 255),  // old gold
+    IM_COL32(112, 164, 204, 255), // steel blue
+    IM_COL32(196, 92, 78, 255),   // dragon's-blood red
+    IM_COL32(128, 172, 104, 255), // moss green
+    IM_COL32(168, 128, 196, 255), // amethyst
+    IM_COL32(204, 134, 82, 255),  // copper
+    IM_COL32(86, 168, 156, 255),  // verdigris
+    IM_COL32(204, 120, 152, 255), // rose
+    IM_COL32(222, 212, 182, 255), // bone
+    IM_COL32(106, 112, 196, 255), // lapis
+    IM_COL32(168, 166, 82, 255),  // olive
+    IM_COL32(150, 200, 226, 255), // frost
+};
+constexpr size_t kPlayerColorCount = sizeof(kPlayerColors) / sizeof(kPlayerColors[0]);
 
 // Skyrim's text colour (off-white) and the near-black of its icon outlines.
 constexpr ImU32 kTextColor = IM_COL32(236, 232, 220, 255);
@@ -147,6 +155,16 @@ void DrawPlayerArrow(ImDrawList* apDraw, ImVec2 acCenter, ImVec2 acDirection, fl
     apDraw->AddTriangleFilled(cTip, cNotch, cBackLeft, WithAlpha(Shade(aColor, 0.3f), aAlpha));
     apDraw->AddTriangleFilled(cTip, cBackRight, cNotch, WithAlpha(Shade(aColor, -0.2f), aAlpha));
     apDraw->AddPolyline(cOutline, 4, WithAlpha(kOutlineColor, aAlpha), ImDrawFlags_Closed, std::max(1.f, cWidth * 0.5f));
+}
+
+// Another player on the compass: a round gem like Skyrim's enemy dots, outlined, lit from the top left.
+void DrawPlayerDot(ImDrawList* apDraw, ImVec2 acCenter, float aRadius, ImU32 aColor, float aAlpha) noexcept
+{
+    apDraw->AddCircleFilled({acCenter.x + 1.f, acCenter.y + 1.5f}, aRadius + 2.f, WithAlpha(IM_COL32(0, 0, 0, 110), aAlpha), 24);
+    apDraw->AddCircleFilled(acCenter, aRadius + std::max(1.5f, aRadius * 0.22f), WithAlpha(kOutlineColor, aAlpha), 24);
+    apDraw->AddCircleFilled(acCenter, aRadius, WithAlpha(Shade(aColor, -0.2f), aAlpha), 24);
+    apDraw->AddCircleFilled({acCenter.x - aRadius * 0.12f, acCenter.y - aRadius * 0.12f}, aRadius * 0.78f, WithAlpha(aColor, aAlpha), 24);
+    apDraw->AddCircleFilled({acCenter.x - aRadius * 0.32f, acCenter.y - aRadius * 0.32f}, aRadius * 0.28f, WithAlpha(Shade(aColor, 0.6f), aAlpha * 0.9f), 16);
 }
 
 ImFont* ThemeFont() noexcept
@@ -260,6 +278,20 @@ void MapService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_markers.clear();
     m_players.clear();
+    m_colorIndex.clear();
+}
+
+uint32_t MapService::ColorOf(uint32_t aPlayerId) const noexcept
+{
+    const auto itor = m_colorIndex.find(aPlayerId);
+    const size_t cIndex = itor != m_colorIndex.end() ? itor->second : aPlayerId; // until the server says
+    return kPlayerColors[cIndex % kPlayerColorCount];
+}
+
+int32_t MapService::GetColorIndex(uint32_t aPlayerId) const noexcept
+{
+    const auto itor = m_colorIndex.find(aPlayerId);
+    return itor != m_colorIndex.end() ? static_cast<int32_t>(itor->second) : -1;
 }
 
 void MapService::OnNotifyPlayerPositions(const NotifyPlayerPositions& acMessage) noexcept
@@ -270,6 +302,7 @@ void MapService::OnNotifyPlayerPositions(const NotifyPlayerPositions& acMessage)
     TiltedPhoques::Map<uint32_t, PlayerOnMap> players;
     for (const auto& entry : acMessage.Players)
     {
+        m_colorIndex[entry.PlayerId] = entry.ColorIndex;
         if (entry.PlayerId == cSelf)
             continue;
         PlayerOnMap player{};
@@ -295,7 +328,7 @@ void MapService::OnDraw() noexcept
 
     if (pUI->GetMenuOpen("MapMenu"))
         DrawOnMap();
-    else if (!m_markers.empty() && pUI->numPausesGame == 0 && !pUI->GetMenuOpen("Dialogue Menu") && !pUI->GetMenuOpen("Console"))
+    else if (pUI->numPausesGame == 0 && !pUI->GetMenuOpen("Dialogue Menu") && !pUI->GetMenuOpen("Console"))
         DrawOnCompass();
 }
 
@@ -322,31 +355,71 @@ void MapService::DrawOnCompass() noexcept
     if (!pNiCamera)
         return;
     const float cHeading = CameraHeading(pNiCamera);
-    for (const auto& [playerId, marker] : m_markers)
-    {
-        if (marker.WorldSpaceId != cWorldSpaceId)
-            continue;
-        const float cBearing = std::atan2(marker.Position.x - pPlayer->position.x, marker.Position.y - pPlayer->position.y);
-        float delta = (cBearing - cHeading) * 180.f / 3.14159265f;
+
+    // Where a world position sits on the compass (x on screen), and how far it is in metres; false if outside it.
+    auto onCompass = [&](const NiPoint3& acPosition, float& aX, float& aDelta, int& aMeters) {
+        const float cDx = acPosition.x - pPlayer->position.x;
+        const float cDy = acPosition.y - pPlayer->position.y;
+        float delta = (std::atan2(cDx, cDy) - cHeading) * 180.f / 3.14159265f;
         while (delta > 180.f)
             delta -= 360.f;
         while (delta < -180.f)
             delta += 360.f;
         if (std::abs(delta) > kCompassHalfAngle)
+            return false;
+        aX = cCenterX + delta / kCompassHalfAngle * cHalfWidth;
+        aDelta = delta;
+        aMeters = static_cast<int>(std::sqrt(cDx * cDx + cDy * cDy) / 70.f);
+        return true;
+    };
+
+    // Other players: their actor where it's loaded nearby (moves smoothly), else what the server last said.
+    TiltedPhoques::Map<uint32_t, NiPoint3> livePositions;
+    for (auto entity : m_world.view<PlayerComponent, FormIdComponent>())
+    {
+        const uint32_t cId = m_world.get<PlayerComponent>(entity).Id;
+        if (Actor* pActor = Cast<Actor>(TESForm::GetById(m_world.get<FormIdComponent>(entity).Id)))
+            livePositions[cId] = pActor->position;
+    }
+    for (const auto& [playerId, player] : m_players)
+    {
+        if (player.WorldSpaceId != cWorldSpaceId)
+            continue;
+        NiPoint3 position = player.Position;
+        if (!player.Inside)
+        {
+            if (auto itor = livePositions.find(playerId); itor != livePositions.end())
+                position = itor->second;
+        }
+        float x = 0.f, delta = 0.f;
+        int meters = 0;
+        if (!onCompass(position, x, delta, meters))
+            continue;
+        const float cAlpha = player.Inside ? 0.6f : 1.f;
+        DrawPlayerDot(pDraw, {x, cCompassY}, cIconHeight * 0.26f, ColorOf(playerId), cAlpha);
+        // Name and distance above the compass while you face them (marker labels go below it).
+        if (std::abs(delta) < 12.f)
+        {
+            const std::string cText = player.Inside ? fmt::format("{} (inside)  \xC2\xB7  {} m", NameOf(playerId).c_str(), meters)
+                                                    : fmt::format("{}  \xC2\xB7  {} m", NameOf(playerId).c_str(), meters);
+            DrawSkyrimText(pDraw, {x, cCompassY - cIconHeight * 0.7f}, Anchor::Above, cText, cHeight * 0.022f, kTextColor, cAlpha);
+        }
+    }
+
+    for (const auto& [playerId, marker] : m_markers)
+    {
+        if (marker.WorldSpaceId != cWorldSpaceId)
+            continue;
+        float x = 0.f, delta = 0.f;
+        int meters = 0;
+        if (!onCompass(marker.Position, x, delta, meters))
             continue;
 
         // Centred on the compass bar, like the game's icons.
-        const float cX = cCenterX + delta / kCompassHalfAngle * cHalfWidth;
-        const ImU32 cColor = PlayerColor(playerId);
-        DrawKite(pDraw, {cX, cCompassY + cIconHeight * 0.5f}, cIconHeight, cColor);
+        DrawKite(pDraw, {x, cCompassY + cIconHeight * 0.5f}, cIconHeight, ColorOf(playerId));
         // Whose it is and how far, under the compass, while it's roughly straight ahead.
         if (std::abs(delta) < 12.f)
-        {
-            const float cDx = marker.Position.x - pPlayer->position.x;
-            const float cDy = marker.Position.y - pPlayer->position.y;
-            const int cMeters = static_cast<int>(std::sqrt(cDx * cDx + cDy * cDy) / 70.f);
-            DrawSkyrimText(pDraw, {cX, cCompassY + cIconHeight * 0.75f}, Anchor::Below, fmt::format("{}  \xC2\xB7  {} m", NameOf(playerId).c_str(), cMeters), cHeight * 0.024f);
-        }
+            DrawSkyrimText(pDraw, {x, cCompassY + cIconHeight * 0.75f}, Anchor::Below, fmt::format("{}'s Marker  \xC2\xB7  {} m", NameOf(playerId).c_str(), meters), cHeight * 0.024f);
     }
 }
 
@@ -394,7 +467,7 @@ void MapService::DrawOnMap() noexcept
 
         const float cAlpha = player.Inside ? 0.6f : 1.f;
         const float cSize = cHeight * 0.0165f;
-        DrawPlayerArrow(pDraw, center, direction, cSize, PlayerColor(playerId), cAlpha);
+        DrawPlayerArrow(pDraw, center, direction, cSize, ColorOf(playerId), cAlpha);
         const std::string cName = player.Inside ? fmt::format("{} (inside)", NameOf(playerId).c_str()) : std::string(NameOf(playerId).c_str());
         DrawSkyrimText(pDraw, {center.x, center.y + cSize * 1.2f}, Anchor::Below, cName, cHeight * 0.024f, kTextColor, cAlpha);
     }
@@ -406,7 +479,7 @@ void MapService::DrawOnMap() noexcept
             continue;
 
         const float cIconHeight = cHeight * 0.034f;
-        DrawKite(pDraw, tip, cIconHeight, PlayerColor(playerId));
+        DrawKite(pDraw, tip, cIconHeight, ColorOf(playerId));
         DrawSkyrimText(pDraw, {tip.x, tip.y - cIconHeight * 1.12f}, Anchor::Above, fmt::format("{}'s Marker", NameOf(playerId).c_str()), cHeight * 0.026f);
     }
 }

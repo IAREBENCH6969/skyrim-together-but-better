@@ -49,6 +49,8 @@ void MapService::OnRemoveWaypointRequest(const PacketEvent<RequestRemoveWaypoint
 
 void MapService::OnPlayerJoin(const PlayerJoinEvent& acEvent) noexcept
 {
+    ColorIndexOf(acEvent.pPlayer->GetId()); // claim a colour now, in join order
+
     // Show a player who just joined the markers that are already out there.
     for (const auto& [playerId, marker] : m_markers)
     {
@@ -66,6 +68,7 @@ void MapService::OnPlayerLeave(const PlayerLeaveEvent& acEvent) noexcept
 {
     const uint32_t cPlayerId = acEvent.pPlayer->GetId();
     m_lastOutside.erase(cPlayerId);
+    m_colorIndex.erase(cPlayerId); // the colour is free for the next player who joins
     if (!m_markers.erase(cPlayerId))
         return;
 
@@ -121,12 +124,14 @@ void MapService::SendPlayerPositions() noexcept
         else
             entry.Inside = true; // in an interior: show where they went in
 
-        auto itor = m_lastOutside.find(cPlayerId);
-        if (itor == m_lastOutside.end())
-            continue; // never seen outside yet: nowhere to put them on the map
-        entry.WorldSpaceId = itor->second.WorldSpaceId;
-        entry.Position = itor->second.Position;
-        entry.Heading = itor->second.Heading;
+        entry.ColorIndex = ColorIndexOf(cPlayerId);
+        // Never seen outside yet: nowhere to put them on the map (no worldspace), but they still get their colour.
+        if (auto itor = m_lastOutside.find(cPlayerId); itor != m_lastOutside.end())
+        {
+            entry.WorldSpaceId = itor->second.WorldSpaceId;
+            entry.Position = itor->second.Position;
+            entry.Heading = itor->second.Heading;
+        }
         notify.Players.push_back(entry);
     }
 
@@ -134,4 +139,28 @@ void MapService::SendPlayerPositions() noexcept
         return;
     for (auto pPlayer : m_world.GetPlayerManager())
         pPlayer->Send(notify);
+}
+
+uint32_t MapService::ColorIndexOf(uint32_t aPlayerId) noexcept
+{
+    if (auto itor = m_colorIndex.find(aPlayerId); itor != m_colorIndex.end())
+        return itor->second;
+
+    // The lowest slot no connected player has.
+    uint32_t index = 0;
+    for (bool taken = true; taken; )
+    {
+        taken = false;
+        for (const auto& [playerId, used] : m_colorIndex)
+        {
+            if (used == index)
+            {
+                taken = true;
+                ++index;
+                break;
+            }
+        }
+    }
+    m_colorIndex[aPlayerId] = index;
+    return index;
 }

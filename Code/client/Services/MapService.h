@@ -18,7 +18,10 @@ struct NotifyPlayerPositions;
  * its position, each in that player's colour with their name.
  *
  * The world map also shows where the other players are (the server sends everyone's position about once a second),
- * as an arrow facing the way they face, with their name. Someone in an interior shows where they went in.
+ * as an arrow facing the way they face, with their name, and the compass shows them as a dot (like Skyrim's enemy
+ * dots) with their name and distance while you face them. Someone in an interior shows where they went in.
+ *
+ * Every player has a colour of their own, the same for everyone: the server gives each player a free colour slot.
  */
 struct MapService
 {
@@ -40,6 +43,11 @@ struct MapService
         float Heading{}; // radians, clockwise from north
         bool Inside{};   // in an interior; Position is where they went in
     };
+
+    // The colour a player's marker, arrow and dot are drawn in.
+    [[nodiscard]] uint32_t ColorOf(uint32_t aPlayerId) const noexcept;
+    // The player's colour slot from the server, or -1 if none yet.
+    [[nodiscard]] int32_t GetColorIndex(uint32_t aPlayerId) const noexcept;
 
     [[nodiscard]] const TiltedPhoques::Map<uint32_t, Marker>& GetMarkers() const noexcept { return m_markers; }
     [[nodiscard]] const TiltedPhoques::Map<uint32_t, PlayerOnMap>& GetPlayersOnMap() const noexcept { return m_players; }
@@ -63,6 +71,7 @@ struct MapService
 
     TiltedPhoques::Map<uint32_t, Marker> m_markers;
     TiltedPhoques::Map<uint32_t, PlayerOnMap> m_players;
+    TiltedPhoques::Map<uint32_t, uint32_t> m_colorIndex; // every player's colour slot, ours included
 
     entt::scoped_connection m_playerSetWaypointConnection;
     entt::scoped_connection m_playerRemoveWaypointConnection;
