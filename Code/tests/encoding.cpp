@@ -14,9 +14,9 @@
 #include <catch2/catch.hpp>
 
 #include <Messages/TradeRequest.h>
-#include <Messages/NotifyTrade.h>
 #include <Messages/ReviveRequest.h>
 #include <Messages/NotifyRevive.h>
+#include <Messages/NotifyTrade.h>
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/ServerMessageFactory.h>
 #include <Structs/Vector2_NetQuantize.h>
@@ -798,15 +798,6 @@ TEST_CASE("Trade messages", "[encoding.packets]")
         sendMessage.Offer.Entries.push_back(gold);
         sendMessage.Offer.Entries.push_back(potion);
 
-TEST_CASE("Revive messages", "[encoding.packets]")
-{
-    {
-        Buffer buff(100);
-        ReviveRequest sendMessage, recvMessage;
-        sendMessage.Action = ReviveAction::Revive;
-        sendMessage.PlayerId = 12;
-        sendMessage.Health = 25.5f;
-        sendMessage.Seconds = 30.f;
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
         Buffer::Reader reader(&buff);
@@ -830,6 +821,33 @@ TEST_CASE("Revive messages", "[encoding.packets]")
         sendMessage.PartnerReady = false;
         sendMessage.Items.Entries.push_back(gold);
 
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+        REQUIRE(recvMessage.Reason == TradeCloseReason::Failed);
+    }
+}
+
+TEST_CASE("Revive messages", "[encoding.packets]")
+{
+    {
+        Buffer buff(100);
+        ReviveRequest sendMessage, recvMessage;
+        sendMessage.Action = ReviveAction::Revive;
+        sendMessage.PlayerId = 12;
+        sendMessage.Health = 25.5f;
+        sendMessage.Seconds = 30.f;
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
         REQUIRE(sendMessage == recvMessage);
     }
     {
@@ -845,9 +863,6 @@ TEST_CASE("Revive messages", "[encoding.packets]")
         uint64_t trash;
         reader.ReadBits(trash, 8);
         recvMessage.DeserializeRaw(reader);
-
-        REQUIRE(sendMessage == recvMessage);
-        REQUIRE(recvMessage.Reason == TradeCloseReason::Failed);
         REQUIRE(sendMessage == recvMessage);
     }
 }
