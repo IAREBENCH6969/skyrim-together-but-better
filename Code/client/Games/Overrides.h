@@ -43,6 +43,9 @@ struct Quest
 struct SpellCast
 {
 };
+struct AddInventoryItem
+{
+};
 } // namespace details
 
 using ScopedReferencesOverride = ScopedOverride<TESObjectREFR>;
@@ -55,3 +58,5 @@ using ScopedInventoryOverride = ScopedOverride<details::Inventory>;
 using ScopedExtraDataOverride = ScopedOverride<details::ExtraData>;
 using ScopedQuestOverride = ScopedOverride<details::Quest>;
 using ScopedSpellCastOverride = ScopedOverride<details::SpellCast>;
+// Set while a hooked AddInventoryItem runs, so the lower-level add it calls (19688) isn't reported a second time.
+using ScopedAddInventoryItemOverride = ScopedOverride<details::AddInventoryItem>;

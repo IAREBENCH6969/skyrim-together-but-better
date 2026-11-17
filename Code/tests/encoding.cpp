@@ -631,6 +631,45 @@ TEST_CASE("Packets", "[encoding.packets]")
     }
 }
 
+TEST_CASE("Player-made poison on a weapon", "[encoding.inventory]")
+{
+    Inventory::EffectItem damageHealth;
+    damageHealth.Magnitude = 10.f;
+    damageHealth.EffectId.BaseId = 0x3EB42;
+
+    Inventory::Entry dagger;
+    dagger.BaseId.BaseId = 0x1397E;
+    dagger.Count = 1;
+    dagger.ExtraPoisonId.ModId = 0xFFFFFFFF;
+    dagger.ExtraPoisonCount = 1;
+    dagger.ExtraPoisonData.IsPoison = true;
+    dagger.ExtraPoisonData.Effects = {damageHealth};
+
+    GIVEN("A round trip")
+    {
+        Buffer buff(1000);
+        Buffer::Writer writer(&buff);
+        dagger.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        Inventory::Entry received;
+        received.Deserialize(reader);
+
+        REQUIRE(received == dagger);
+        REQUIRE(received.ContainsExtraData());
+        REQUIRE(received.ExtraPoisonData.Effects.size() == 1);
+    }
+
+    GIVEN("A plain dagger of the same kind")
+    {
+        Inventory::Entry plain;
+        plain.BaseId.BaseId = 0x1397E;
+        plain.Count = 1;
+
+        REQUIRE_FALSE(dagger.CanBeMerged(plain));
+    }
+}
+
 TEST_CASE("Player-made potion magic effects", "[encoding.inventory]")
 {
     Inventory::EffectItem damageHealth;

@@ -57,6 +57,8 @@ struct Inventory
 
         GameId ExtraPoisonId{};
         uint32_t ExtraPoisonCount{};
+        // Set when the poison on this weapon is player-made (ExtraPoisonId is then FFFFFFFF:0).
+        AlchemyData ExtraPoisonData{};
 
         int32_t ExtraSoulLevel{};
 
@@ -85,7 +87,7 @@ struct Inventory
             // since many of these things can and will change, like poison id or charge
             // or the fact that the enchant id can be temp
             return ExtraCharge == acRhs.ExtraCharge && ExtraEnchantId == acRhs.ExtraEnchantId && ExtraEnchantCharge == acRhs.ExtraEnchantCharge && ExtraEnchantRemoveUnequip == acRhs.ExtraEnchantRemoveUnequip && ExtraHealth == acRhs.ExtraHealth && ExtraPoisonId == acRhs.ExtraPoisonId &&
-                   ExtraPoisonCount == acRhs.ExtraPoisonCount && ExtraSoulLevel == acRhs.ExtraSoulLevel && ExtraWorn == acRhs.ExtraWorn && ExtraWornLeft == acRhs.ExtraWornLeft && IsQuestItem == acRhs.IsQuestItem;
+                   ExtraPoisonData == acRhs.ExtraPoisonData && ExtraPoisonCount == acRhs.ExtraPoisonCount && ExtraSoulLevel == acRhs.ExtraSoulLevel && ExtraWorn == acRhs.ExtraWorn && ExtraWornLeft == acRhs.ExtraWornLeft && IsQuestItem == acRhs.IsQuestItem;
         }
 
         bool IsWorn() const noexcept { return ExtraWorn || ExtraWornLeft; }

@@ -78,6 +78,9 @@ TP_THIS_FUNCTION(TSetLeveledCreature, void, TESObjectREFR, TESActorBase* apOrigi
 
 static TActivate* RealActivate = nullptr;
 static TAddInventoryItem* RealAddInventoryItem = nullptr;
+
+TP_THIS_FUNCTION(TAddToInventoryChanges, void, TESObjectREFR, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, void* apUnk);
+static TAddToInventoryChanges* RealAddToInventoryChanges = nullptr;
 static TRemoveInventoryItem* RealRemoveInventoryItem = nullptr;
 static TPlayAnimationAndWait* RealPlayAnimationAndWait = nullptr;
 static TPlayAnimation* RealPlayAnimation = nullptr;
@@ -574,6 +577,14 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
         {
             modSystem.GetServerModId(pExtraPoison->pPoison->formID, arEntry.ExtraPoisonId);
             arEntry.ExtraPoisonCount = pExtraPoison->uiCount;
+
+            // A player-made poison only exists on this client, so send its effects instead.
+            if (pExtraPoison->pPoison->IsTemporary())
+            {
+                pExtraPoison->pPoison->GetAlchemyData(arEntry.ExtraPoisonData);
+                if (!arEntry.ExtraPoisonData.IsEmpty())
+                    arEntry.ExtraPoisonId.BaseId = 0;
+            }
         }
     }
 
@@ -632,12 +643,16 @@ ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEnt
         pExtraDataList->SetEnchantmentData(pEnchantment, arEntry.ExtraEnchantCharge, arEntry.ExtraEnchantRemoveUnequip);
     }
 
-    if (arEntry.ExtraPoisonId != 0)
+    if (!arEntry.ExtraPoisonData.IsEmpty())
     {
-        // TODO: does poison have the same temp problem as enchants?
-        // doesn't seem to be the case, there are only like 3 poisons, and no custom ones
-        TP_ASSERT(arEntry.ExtraPoisonId.ModId != 0xFFFFFFFF, "Poison is sent as temp!");
-
+        // Player-made poison: rebuild it. SetPoison takes its own engine reference (ExtraPoison 12587 calls
+        // IncrementRef), so the reference from Create is released when createdPoison goes out of scope.
+        CreatedAlchemyItemRef createdPoison(AlchemyItem::Create(arEntry.ExtraPoisonData));
+        if (createdPoison.pItem)
+            pExtraDataList->SetPoison(createdPoison.pItem, arEntry.ExtraPoisonCount);
+    }
+    else if (arEntry.ExtraPoisonId != 0)
+    {
         uint32_t poisonId = modSystem.GetGameId(arEntry.ExtraPoisonId);
         if (AlchemyItem* pPoison = Cast<AlchemyItem>(TESForm::GetById(poisonId)))
         {
@@ -1082,7 +1097,28 @@ void TP_MAKE_THISCALL(HookAddInventoryItem, TESObjectREFR, TESBoundObject* apIte
 
     spdlog::debug("Adding inventory item {:X} to {:X}", apItem->formID, apThis->formID);
 
+    ScopedAddInventoryItemOverride _;
     TiltedPhoques::ThisCall(RealAddInventoryItem, apThis, apItem, apExtraData, aCount, apOldOwner);
+}
+
+// 19688 adds an item straight to a reference's inventory changes. AddInventoryItem (hooked above) uses it too, but
+// some engine paths call it directly and are never reported: the alchemy menu's crafting (51354) and harvesting
+// (14864). Only the local player's adds are reported here; container loot fills (16127) are left alone.
+void TP_MAKE_THISCALL(HookAddToInventoryChanges, TESObjectREFR, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, void* apUnk)
+{
+    if (!ScopedInventoryOverride::IsOverriden() && !ScopedAddInventoryItemOverride::IsOverriden() && apThis == PlayerCharacter::Get() && apItem && aCount > 0)
+    {
+        Inventory::Entry item{};
+        TESObjectREFR::SetItemBase(item, apItem);
+        item.Count = aCount;
+
+        if (apExtraData)
+            apThis->GetItemFromExtraData(item, apExtraData);
+
+        QueueReferenceInventoryChange(InventoryChangeEvent(apThis->formID, std::move(item)), nullptr);
+    }
+
+    TiltedPhoques::ThisCall(RealAddToInventoryChanges, apThis, apItem, apExtraData, aCount, apUnk);
 }
 
 BSPointerHandle<TESObjectREFR>*
@@ -1181,6 +1217,9 @@ static TiltedPhoques::Initializer s_objectReferencesHooks(
         RealRotateZ = s_rotateZ.Get();
         RealActivate = s_activate.Get();
         RealAddInventoryItem = s_addInventoryItem.Get();
+
+        POINTER_SKYRIMSE(TAddToInventoryChanges, s_addToInventoryChanges, 19688);
+        RealAddToInventoryChanges = s_addToInventoryChanges.Get();
         RealRemoveInventoryItem = s_removeInventoryItem.Get();
         RealPlayAnimationAndWait = s_playAnimationAndWait.Get();
         RealPlayAnimation = s_playAnimation.Get();
@@ -1192,6 +1231,7 @@ static TiltedPhoques::Initializer s_objectReferencesHooks(
         TP_HOOK(&RealRotateZ, HookRotateZ);
         TP_HOOK(&RealActivate, HookActivate);
         TP_HOOK(&RealAddInventoryItem, HookAddInventoryItem);
+        TP_HOOK(&RealAddToInventoryChanges, HookAddToInventoryChanges);
         TP_HOOK(&RealRemoveInventoryItem, HookRemoveInventoryItem);
         TP_HOOK(&RealPlayAnimationAndWait, HookPlayAnimationAndWait);
         TP_HOOK(&RealPlayAnimation, HookPlayAnimation);

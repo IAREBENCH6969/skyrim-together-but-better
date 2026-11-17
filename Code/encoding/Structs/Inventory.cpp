@@ -77,6 +77,7 @@ void Inventory::Entry::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const n
     Serialization::WriteBool(aWriter, IsQuestItem);
 
     CustomAlchemy.Serialize(aWriter);
+    ExtraPoisonData.Serialize(aWriter);
 }
 
 void Inventory::Entry::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -110,6 +111,7 @@ void Inventory::Entry::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexc
     IsQuestItem = Serialization::ReadBool(aReader);
 
     CustomAlchemy.Deserialize(aReader);
+    ExtraPoisonData.Deserialize(aReader);
 }
 
 bool Inventory::operator==(const Inventory& acRhs) const noexcept
