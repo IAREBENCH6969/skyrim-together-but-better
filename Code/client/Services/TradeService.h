@@ -51,6 +51,7 @@ private:
 
     uint32_t m_partnerId{};
     bool m_handingOver{};
+    bool m_openedOverlay{};
     Vector<Inventory::Entry> m_tradable;
     Vector<int32_t> m_offerCounts; // parallel to m_tradable
 
