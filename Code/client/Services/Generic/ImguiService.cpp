@@ -23,6 +23,19 @@ void ImguiService::Create(RenderSystemD3D11* apRenderSystem, HWND aHwnd)
 {
     m_imDriver.Initialize(static_cast<void*>(aHwnd));
 
+    // Fonts have to be added before the first frame builds the font texture.
+    for (const char* cpPath : {"UI/assets/futura-condensed-medium.otf", "UI/assets/fonts/futura-condensed/futura-condensed-medium.otf"})
+    {
+        const auto cFile = TiltedPhoques::GetPath() / cpPath;
+        if (!std::filesystem::exists(cFile))
+            continue;
+        auto& io = ImGui::GetIO();
+        m_pThemeFont = io.Fonts->AddFontFromFileTTF(cFile.string().c_str(), 48.f, nullptr, io.Fonts->GetGlyphRangesCyrillic());
+        break;
+    }
+    if (!m_pThemeFont)
+        spdlog::warn("ImGui: Skyrim UI font not found, using the default font");
+
     // init platform
     if (!ImGui_ImplWin32_Init(aHwnd))
         spdlog::error("Failed to initialize Imgui-Win32");
