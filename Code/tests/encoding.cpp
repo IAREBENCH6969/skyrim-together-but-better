@@ -589,6 +589,125 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(pMessage->GetOpcode() == sendMessage.GetOpcode());
         REQUIRE(*CastUnique<NotifyInventorySnapshot>(std::move(pMessage)) == sendMessage);
     }
+
+    GIVEN("RequestInventorySnapshot with a player-made potion")
+    {
+        Inventory::EffectItem restoreHealth;
+        restoreHealth.Magnitude = 37.5f;
+        restoreHealth.Duration = 0;
+        restoreHealth.RawCost = 0.5f;
+        restoreHealth.EffectId.BaseId = 0x3EB15;
+
+        Inventory::EffectItem fortifyHealth;
+        fortifyHealth.Magnitude = 21.f;
+        fortifyHealth.Duration = 60;
+        fortifyHealth.RawCost = 0.35f;
+        fortifyHealth.EffectId.BaseId = 0x3EAF3;
+
+        Inventory::Entry potion;
+        potion.BaseId.ModId = 0xFFFFFFFF;
+        potion.Count = 3;
+        potion.CustomAlchemy.Effects = {restoreHealth, fortifyHealth};
+
+        RequestInventorySnapshot sendMessage;
+        sendMessage.ServerId = 0x10042;
+        sendMessage.OwnershipEpoch = 7;
+        sendMessage.CurrentInventory.Entries = {potion};
+
+        Buffer buff(1000);
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+
+        const ClientMessageFactory factory;
+        auto pMessage = factory.Extract(reader);
+
+        REQUIRE(pMessage);
+        REQUIRE(pMessage->GetOpcode() == sendMessage.GetOpcode());
+        auto pReceived = CastUnique<RequestInventorySnapshot>(std::move(pMessage));
+        REQUIRE(*pReceived == sendMessage);
+        REQUIRE(pReceived->CurrentInventory.Entries[0].CustomAlchemy.Effects.size() == 2);
+    }
+}
+
+TEST_CASE("Player-made potion magic effects", "[encoding.inventory]")
+{
+    Inventory::EffectItem damageHealth;
+    damageHealth.Magnitude = 10.f;
+    damageHealth.EffectId.BaseId = 0x3EB42;
+
+    AddTargetRequest sendMessage;
+    sendMessage.TargetId = 0x12;
+    sendMessage.SpellId.ModId = 0xFFFFFFFF;
+    sendMessage.EffectId.BaseId = 0x3EB42;
+    sendMessage.Magnitude = 10.f;
+    sendMessage.CustomAlchemy.IsPoison = true;
+    sendMessage.CustomAlchemy.Effects = {damageHealth};
+
+    Buffer buff(1000);
+    Buffer::Writer writer(&buff);
+    sendMessage.Serialize(writer);
+
+    Buffer::Reader reader(&buff);
+    const ClientMessageFactory factory;
+    auto pMessage = factory.Extract(reader);
+
+    REQUIRE(pMessage);
+    REQUIRE(pMessage->GetOpcode() == sendMessage.GetOpcode());
+    auto pReceived = CastUnique<AddTargetRequest>(std::move(pMessage));
+    REQUIRE(*pReceived == sendMessage);
+    REQUIRE(pReceived->CustomAlchemy.IsPoison);
+}
+
+TEST_CASE("Player-made potion stacks", "[encoding.inventory]")
+{
+    Inventory::EffectItem restoreHealth;
+    restoreHealth.Magnitude = 37.5f;
+    restoreHealth.EffectId.BaseId = 0x3EB15;
+
+    Inventory::Entry potion;
+    potion.BaseId.ModId = 0xFFFFFFFF;
+    potion.Count = 2;
+    potion.CustomAlchemy.Effects = {restoreHealth};
+
+    GIVEN("The same potion from another player")
+    {
+        Inventory inventory;
+        inventory.AddOrRemoveEntry(potion);
+        inventory.AddOrRemoveEntry(potion);
+
+        REQUIRE(inventory.Entries.size() == 1);
+        REQUIRE(inventory.Entries[0].Count == 4);
+    }
+
+    GIVEN("A different potion with the same base id")
+    {
+        Inventory::Entry poison = potion;
+        poison.CustomAlchemy.IsPoison = true;
+
+        Inventory::Entry strongerPotion = potion;
+        strongerPotion.CustomAlchemy.Effects[0].Magnitude = 50.f;
+
+        Inventory inventory;
+        inventory.AddOrRemoveEntry(potion);
+        inventory.AddOrRemoveEntry(poison);
+        inventory.AddOrRemoveEntry(strongerPotion);
+
+        REQUIRE(inventory.Entries.size() == 3);
+    }
+
+    GIVEN("Taking the potion back out")
+    {
+        Inventory::Entry taken = potion;
+        taken.Count = -2;
+
+        Inventory inventory;
+        inventory.AddOrRemoveEntry(potion);
+        inventory.AddOrRemoveEntry(taken);
+
+        REQUIRE(inventory.Entries.empty());
+    }
 }
 
 TEST_CASE("StringCache", "[encoding.string_cache]")

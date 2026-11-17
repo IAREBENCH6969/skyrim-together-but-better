@@ -21,6 +21,33 @@ void Inventory::EffectItem::Deserialize(TiltedPhoques::Buffer::Reader& aReader) 
     EffectId.Deserialize(aReader);
 }
 
+bool Inventory::EffectItem::operator==(const EffectItem& acRhs) const noexcept
+{
+    return Magnitude == acRhs.Magnitude && Area == acRhs.Area && Duration == acRhs.Duration && RawCost == acRhs.RawCost && EffectId == acRhs.EffectId;
+}
+
+void Inventory::AlchemyData::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteBool(aWriter, IsPoison);
+    Serialization::WriteVarInt(aWriter, Effects.size());
+    for (const EffectItem& effect : Effects)
+    {
+        effect.Serialize(aWriter);
+    }
+}
+
+void Inventory::AlchemyData::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    IsPoison = Serialization::ReadBool(aReader);
+    uint64_t effectCount = Serialization::ReadVarInt(aReader);
+    for (uint64_t i = 0; i < effectCount; i++)
+    {
+        EffectItem effect;
+        effect.Deserialize(aReader);
+        Effects.push_back(effect);
+    }
+}
+
 void Inventory::Entry::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
     BaseId.Serialize(aWriter);
@@ -48,6 +75,8 @@ void Inventory::Entry::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const n
     Serialization::WriteBool(aWriter, ExtraWorn);
     Serialization::WriteBool(aWriter, ExtraWornLeft);
     Serialization::WriteBool(aWriter, IsQuestItem);
+
+    CustomAlchemy.Serialize(aWriter);
 }
 
 void Inventory::Entry::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -79,6 +108,8 @@ void Inventory::Entry::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexc
     ExtraWorn = Serialization::ReadBool(aReader);
     ExtraWornLeft = Serialization::ReadBool(aReader);
     IsQuestItem = Serialization::ReadBool(aReader);
+
+    CustomAlchemy.Deserialize(aReader);
 }
 
 bool Inventory::operator==(const Inventory& acRhs) const noexcept
@@ -93,7 +124,7 @@ bool Inventory::operator!=(const Inventory& acRhs) const noexcept
 
 bool Inventory::Entry::operator==(const Inventory::Entry& acRhs) const noexcept
 {
-    return BaseId == acRhs.BaseId && Count == acRhs.Count && IsExtraDataEquals(acRhs);
+    return BaseId == acRhs.BaseId && Count == acRhs.Count && CustomAlchemy == acRhs.CustomAlchemy && IsExtraDataEquals(acRhs);
 }
 
 bool Inventory::Entry::operator!=(const Inventory::Entry& acRhs) const noexcept

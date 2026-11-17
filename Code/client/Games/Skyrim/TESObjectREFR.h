@@ -62,6 +62,9 @@ struct TESObjectREFR : TESForm
     static TESObjectREFR* GetByHandle(uint32_t aHandle) noexcept;
     static uint32_t* GetNullHandle() noexcept;
 
+    // Sets arEntry.BaseId from a local item form. Player-made potions and poisons also get their effects, since their
+    // form only exists on this client.
+    static void SetItemBase(Inventory::Entry& arEntry, const TESForm* apItem) noexcept;
     static void GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataList* apExtraDataList) noexcept;
     static ExtraDataList* GetExtraDataFromItem(const Inventory::Entry& arEntry) noexcept;
 

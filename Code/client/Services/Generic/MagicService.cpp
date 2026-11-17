@@ -6,6 +6,7 @@
 #include <Events/SpellCastEvent.h>
 #include <Events/InterruptCastEvent.h>
 #include <Events/AddTargetEvent.h>
+#include <Forms/AlchemyItem.h>
 #include <Events/RemoveSpellEvent.h>
 
 #include <Messages/RemoveSpellRequest.h>
@@ -30,6 +31,34 @@
 #include <PlayerCharacter.h>
 
 #include <Games/TES.h>
+
+namespace
+{
+// A player-made potion or poison only exists on the client that brewed it, so its effects travel with the spell id.
+void GetCustomAlchemy(uint32_t aSpellFormId, Inventory::AlchemyData& aData) noexcept
+{
+    const TESForm* pSpellForm = TESForm::GetById(aSpellFormId);
+    if (pSpellForm && pSpellForm->IsTemporary() && pSpellForm->formType == FormType::Alchemy)
+        static_cast<const AlchemyItem*>(pSpellForm)->GetAlchemyData(aData);
+}
+
+// Rebuilds a remote player's potion or poison. Spells and active effects keep pointing at it, so the first reference
+// to each distinct potion is kept for the rest of the session instead of released, or the potion could be destroyed
+// while an effect still uses it.
+uint32_t ResolveCustomAlchemy(const Inventory::AlchemyData& acData) noexcept
+{
+    static TiltedPhoques::Set<uint32_t> s_pinnedPotions{};
+
+    CreatedAlchemyItemRef potion(AlchemyItem::Create(acData));
+    if (!potion.pItem)
+        return 0;
+
+    const uint32_t cFormId = potion.pItem->formID;
+    if (s_pinnedPotions.insert(cFormId).second)
+        potion.pItem = nullptr;
+    return cFormId;
+}
+} // namespace
 
 MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
     : m_world(aWorld)
@@ -111,6 +140,8 @@ void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) const noexcep
         return;
     }
 
+    GetCustomAlchemy(acEvent.SpellId, request.CustomAlchemy);
+
     if (acEvent.DesiredTargetID != 0)
     {
         auto targetView = m_world.view<FormIdComponent>();
@@ -165,7 +196,8 @@ void MagicService::OnNotifySpellCast(const NotifySpellCast& acMessage) const noe
 
     if (!pSpell)
     {
-        const uint32_t cSpellFormId = World::Get().GetModSystem().GetGameId(acMessage.SpellFormId);
+        const uint32_t cSpellFormId =
+            acMessage.CustomAlchemy.IsEmpty() ? World::Get().GetModSystem().GetGameId(acMessage.SpellFormId) : ResolveCustomAlchemy(acMessage.CustomAlchemy);
         if (cSpellFormId == 0)
         {
             spdlog::error("Could not find spell form id for GameId base {:X}, mod {:X}", acMessage.SpellFormId.BaseId, acMessage.SpellFormId.ModId);
@@ -327,6 +359,8 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
 
     request.Magnitude = acEvent.Magnitude;
 
+    GetCustomAlchemy(acEvent.SpellID, request.CustomAlchemy);
+
     // Because it takes time to create Actors, the Caster or Target may not
     // exist on the server yet, or server may not have told us yet. Have to queue to compensate.
     auto view = m_world.view<FormIdComponent>();
@@ -382,7 +416,8 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
 
 void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
 {
-    const uint32_t cSpellId = World::Get().GetModSystem().GetGameId(acMessage.SpellId);
+    const uint32_t cSpellId = acMessage.CustomAlchemy.IsEmpty() ? World::Get().GetModSystem().GetGameId(acMessage.SpellId) : ResolveCustomAlchemy(acMessage.CustomAlchemy);
+
     if (cSpellId == 0)
     {
         spdlog::error("{}: failed to retrieve formID of server spell id, GameId base: {:X}, mod: {:X}, discarding", __FUNCTION__, acMessage.SpellId.BaseId, acMessage.SpellId.ModId);

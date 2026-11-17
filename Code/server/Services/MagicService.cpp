@@ -31,6 +31,7 @@ void MagicService::OnSpellCastRequest(const PacketEvent<SpellCastRequest>& acMes
     notify.CastingSource = message.CastingSource;
     notify.IsDualCasting = message.IsDualCasting;
     notify.DesiredTarget = message.DesiredTarget;
+    notify.CustomAlchemy = message.CustomAlchemy;
 
     const auto entity = static_cast<entt::entity>(message.CasterId);
     if (!GameServer::Get()->SendToPlayersInRange(notify, entity, acMessage.GetSender()))
@@ -63,6 +64,7 @@ void MagicService::OnAddTargetRequest(const PacketEvent<AddTargetRequest>& acMes
     notify.IsDualCasting = message.IsDualCasting;
     notify.ApplyHealPerkBonus = message.ApplyHealPerkBonus;
     notify.ApplyStaminaPerkBonus = message.ApplyStaminaPerkBonus;
+    notify.CustomAlchemy = message.CustomAlchemy;
 
     const auto entity = static_cast<entt::entity>(message.TargetId);
     if (!GameServer::Get()->SendToPlayersInRange(notify, entity, acMessage.GetSender()))

@@ -16,6 +16,8 @@ struct Inventory
         float RawCost{};
         GameId EffectId{};
 
+        bool operator==(const EffectItem& acRhs) const noexcept;
+
         void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
         void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
     };
@@ -24,6 +26,20 @@ struct Inventory
     {
         bool IsWeapon{};
         Vector<EffectItem> Effects{};
+    };
+
+    // Player-made potions and poisons are runtime forms (0xFF range) that only exist on the client that brewed them,
+    // so they travel as their effects and get rebuilt on the receiving side.
+    struct AlchemyData
+    {
+        bool IsPoison{};
+        Vector<EffectItem> Effects{};
+
+        bool IsEmpty() const noexcept { return Effects.empty(); }
+        bool operator==(const AlchemyData& acRhs) const noexcept { return IsPoison == acRhs.IsPoison && Effects == acRhs.Effects; }
+
+        void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
+        void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
     };
 
     struct Entry
@@ -49,6 +65,10 @@ struct Inventory
         bool ExtraWornLeft{};
         bool IsQuestItem{};
 
+        // Set when BaseId is a player-made potion or poison. BaseId then has no meaning outside the sender, so these
+        // entries are identified by their effects instead (see TESObjectREFR::SetItemBase).
+        AlchemyData CustomAlchemy{};
+
         bool operator==(const Entry& acRhs) const noexcept;
         bool operator!=(const Entry& acRhs) const noexcept;
 
@@ -57,7 +77,7 @@ struct Inventory
 
         bool ContainsExtraData() const noexcept { return !IsExtraDataEquals(Entry{}); }
 
-        bool CanBeMerged(const Entry& acRhs) const noexcept { return BaseId == acRhs.BaseId && IsExtraDataEquals(acRhs); }
+        bool CanBeMerged(const Entry& acRhs) const noexcept { return BaseId == acRhs.BaseId && CustomAlchemy == acRhs.CustomAlchemy && IsExtraDataEquals(acRhs); }
 
         bool IsExtraDataEquals(const Entry& acRhs) const noexcept
         {

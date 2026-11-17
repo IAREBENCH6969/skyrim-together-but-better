@@ -164,10 +164,8 @@ void PlayerCharacter::RemoveWaypoint() noexcept
 
 char TP_MAKE_THISCALL(HookPickUpObject, PlayerCharacter, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2)
 {
-    auto& modSystem = World::Get().GetModSystem();
-
     Inventory::Entry item{};
-    modSystem.GetServerModId(apObject->baseForm->formID, item.BaseId);
+    TESObjectREFR::SetItemBase(item, apObject->baseForm);
     item.Count = aCount;
 
     if (apObject->GetExtraDataList() && !ScopedExtraDataOverride::IsOverriden())

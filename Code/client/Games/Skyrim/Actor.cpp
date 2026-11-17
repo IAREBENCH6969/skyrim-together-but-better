@@ -1057,10 +1057,8 @@ void TP_MAKE_THISCALL(HookAddInventoryItem, Actor, TESBoundObject* apItem, Extra
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
-        auto& modSystem = World::Get().GetModSystem();
-
         Inventory::Entry item{};
-        modSystem.GetServerModId(apItem->formID, item.BaseId);
+        TESObjectREFR::SetItemBase(item, apItem);
         item.Count = aCount;
 
         if (apExtraData)
@@ -1076,10 +1074,8 @@ void* TP_MAKE_THISCALL(HookPickUpObject, Actor, TESObjectREFR* apObject, int32_t
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
-        auto& modSystem = World::Get().GetModSystem();
-
         Inventory::Entry item{};
-        modSystem.GetServerModId(apObject->baseForm->formID, item.BaseId);
+        TESObjectREFR::SetItemBase(item, apObject->baseForm);
         item.Count = aCount;
 
         if (apObject->GetExtraDataList())
@@ -1102,10 +1098,8 @@ void Actor::PickUpObject(TESObjectREFR* apObject, int32_t aCount, bool aUnk1, fl
 
 void* TP_MAKE_THISCALL(HookDropObject, Actor, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation)
 {
-    auto& modSystem = World::Get().GetModSystem();
-
     Inventory::Entry item{};
-    modSystem.GetServerModId(apObject->formID, item.BaseId);
+    TESObjectREFR::SetItemBase(item, apObject);
     item.Count = -aCount;
 
     if (apExtraData)
@@ -1124,7 +1118,10 @@ void Actor::DropOrPickUpObject(const Inventory::Entry& arEntry, NiPoint3* apLoca
 
     ModSystem& modSystem = World::Get().GetModSystem();
 
-    uint32_t objectId = modSystem.GetGameId(arEntry.BaseId);
+    // Player-made potions and poisons are rebuilt from their effects, see TESObjectREFR::AddOrRemoveItem.
+    CreatedAlchemyItemRef createdAlchemy(arEntry.CustomAlchemy.IsEmpty() ? nullptr : AlchemyItem::Create(arEntry.CustomAlchemy));
+
+    uint32_t objectId = createdAlchemy.pItem ? createdAlchemy.pItem->formID : modSystem.GetGameId(arEntry.BaseId);
     TESBoundObject* pObject = Cast<TESBoundObject>(TESForm::GetById(objectId));
     if (!pObject)
     {
