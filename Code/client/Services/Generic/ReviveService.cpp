@@ -215,8 +215,59 @@ TESBoundObject* ReviveService::FindHealingPotion(float& aHealth) noexcept
     return pBest;
 }
 
+extern thread_local bool g_forceAnimation;
+
+void ReviveService::UpdateStandingUp() noexcept
+{
+    const auto cNow = std::chrono::steady_clock::now();
+    for (auto itor = m_standingUp.begin(); itor != m_standingUp.end();)
+    {
+        const uint32_t cPlayerId = itor->first;
+        StandingUp& standing = itor.value();
+
+        Actor* pActor = nullptr;
+        for (auto entity : m_world.view<PlayerComponent, FormIdComponent>())
+        {
+            if (m_world.get<PlayerComponent>(entity).Id == cPlayerId)
+                pActor = Cast<Actor>(TESForm::GetById(m_world.get<FormIdComponent>(entity).Id));
+        }
+
+        // Our copy follows the owner's animation variables, but nothing tells its behaviour graph to leave the
+        // bleedout pose (the owner's game gets up on its own, without an event that reaches us). Ask for the game's
+        // get-up ("BleedOutStop"); the graph turns that down in the bleedout idle, so then reset it to its default,
+        // standing, state. Animation events on a remote copy only go through with Skyrim Together's force flag.
+        if (pActor && standing.Sends == 0)
+        {
+            const char* cpUsed = "BleedOutStop";
+            BSFixedString getUp("BleedOutStop");
+            g_forceAnimation = true;
+            bool accepted = pActor->SendAnimationEvent(&getUp);
+            if (!accepted)
+            {
+                cpUsed = "IdleForceDefaultState";
+                BSFixedString reset("IdleForceDefaultState");
+                accepted = pActor->SendAnimationEvent(&reset);
+            }
+            g_forceAnimation = false;
+            standing.Sends++;
+            spdlog::info("[ReviveService]: player {} is up; our copy of them got {} ({})", cPlayerId, cpUsed, accepted ? "accepted" : "not accepted");
+        }
+
+        // Not loaded here (far away): it spawns standing when it comes near.
+        if (!pActor || standing.Sends >= 1 || cNow - standing.Started > 5s)
+        {
+            itor = m_standingUp.erase(itor);
+            continue;
+        }
+        ++itor;
+    }
+}
+
 void ReviveService::OnUpdate(const UpdateEvent&) noexcept
 {
+    if (!m_standingUp.empty())
+        UpdateStandingUp();
+
     const bool cActivateDown = (GetAsyncKeyState(kActivateKey) & 0x8000) != 0;
 
     // Give the game its activation back a moment after E was let go.
@@ -287,6 +338,7 @@ void ReviveService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_downedPlayers.clear();
     m_nextHint.clear();
+    m_standingUp.clear();
 }
 
 void ReviveService::OnServerSettings(const ServerSettings& acSettings) noexcept
@@ -306,6 +358,7 @@ void ReviveService::OnNotifyRevive(const NotifyRevive& acMessage) noexcept
         break;
     case ReviveEvent::Up:
         m_downedPlayers.erase(acMessage.PlayerId);
+        m_standingUp[acMessage.PlayerId] = {std::chrono::steady_clock::now(), 0};
         spdlog::info("[ReviveService]: player {} is up", acMessage.PlayerId);
         break;
     case ReviveEvent::Revived:
