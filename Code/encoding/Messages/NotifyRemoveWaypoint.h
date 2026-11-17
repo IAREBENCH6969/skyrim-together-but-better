@@ -15,6 +15,9 @@ struct NotifyRemoveWaypoint final : ServerMessage
 
     bool operator==(const NotifyRemoveWaypoint& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode();
+        return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId;
     }
+
+    // The player whose custom map marker was removed.
+    uint32_t PlayerId{};
 };

@@ -17,9 +17,11 @@ struct NotifySetWaypoint final : ServerMessage
 
     bool operator==(const NotifySetWaypoint& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Position == acRhs.Position && WorldSpaceFormID == acRhs.WorldSpaceFormID;
+        return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Position == acRhs.Position && WorldSpaceFormID == acRhs.WorldSpaceFormID;
     }
 
+    // The player whose custom map marker this is.
+    uint32_t PlayerId{};
     Vector3_NetQuantize Position;
     GameId WorldSpaceFormID;
 };
