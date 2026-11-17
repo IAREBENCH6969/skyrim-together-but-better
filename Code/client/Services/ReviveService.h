@@ -50,6 +50,8 @@ private:
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnServerSettings(const ServerSettings& acSettings) noexcept;
     void OnNotifyRevive(const NotifyRevive& acMessage) noexcept;
+    // Gets our copies of revived players back on their feet (see m_standingUp).
+    void UpdateStandingUp() noexcept;
     // Draws a revive marker above every downed player (ImGui, every frame), so they're easy to find.
     void OnDraw() noexcept;
 
@@ -63,6 +65,15 @@ private:
     // Downed players and when they respawn if nobody revives them.
     TiltedPhoques::Map<uint32_t, std::chrono::steady_clock::time_point> m_downedPlayers;
     TiltedPhoques::Map<uint32_t, std::chrono::steady_clock::time_point> m_nextHint;
+
+    // Other players who are up again after being down. Our copy of such a player stays in the bleedout pose (its
+    // behaviour graph never gets an event to leave it), so it's sent the game's "BleedOutStop" event.
+    struct StandingUp
+    {
+        std::chrono::steady_clock::time_point Started{};
+        int Sends{};
+    };
+    TiltedPhoques::Map<uint32_t, StandingUp> m_standingUp;
     std::chrono::steady_clock::time_point m_nextUpdate{};
     bool m_activateWasDown{};
     // An E press was used for a revive: the game's own activation stays off until E is let go, so the same press
