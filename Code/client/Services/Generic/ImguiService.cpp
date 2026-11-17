@@ -23,15 +23,25 @@ void ImguiService::Create(RenderSystemD3D11* apRenderSystem, HWND aHwnd)
 {
     m_imDriver.Initialize(static_cast<void*>(aHwnd));
 
-    // Fonts have to be added before the first frame builds the font texture.
-    for (const char* cpPath : {"UI/assets/futura-condensed-medium.otf", "UI/assets/fonts/futura-condensed/futura-condensed-medium.otf"})
+    // Fonts have to be added before the first frame builds the font texture. The overlay ships Futura Condensed;
+    // where its build puts the file (UI/assets, UI/media, maybe with a hash in the name) varies, so look for it.
+    std::filesystem::path fontFile;
+    std::error_code error;
+    for (std::filesystem::recursive_directory_iterator itor(TiltedPhoques::GetPath() / "UI", error), end; !error && itor != end; itor.increment(error))
     {
-        const auto cFile = TiltedPhoques::GetPath() / cpPath;
-        if (!std::filesystem::exists(cFile))
-            continue;
+        const std::string cName = itor->path().filename().string();
+        if (itor->is_regular_file(error) && cName.starts_with("futura-condensed-medium") && itor->path().extension() == ".otf")
+        {
+            fontFile = itor->path();
+            break;
+        }
+    }
+    if (!fontFile.empty())
+    {
         auto& io = ImGui::GetIO();
-        m_pThemeFont = io.Fonts->AddFontFromFileTTF(cFile.string().c_str(), 48.f, nullptr, io.Fonts->GetGlyphRangesCyrillic());
-        break;
+        m_pThemeFont = io.Fonts->AddFontFromFileTTF(fontFile.string().c_str(), 48.f, nullptr, io.Fonts->GetGlyphRangesCyrillic());
+        if (m_pThemeFont)
+            spdlog::info("ImGui: Skyrim UI font loaded from {}", fontFile.string());
     }
     if (!m_pThemeFont)
         spdlog::warn("ImGui: Skyrim UI font not found, using the default font");
