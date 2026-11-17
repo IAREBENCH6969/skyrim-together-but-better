@@ -26,6 +26,8 @@ void ProcessHandler::OnContextCreated(CefRefPtr<CefBrowser> browser, CefRefPtr<C
     m_pCoreObject->SetValue("kickPartyMember", CefV8Value::CreateFunction("kickPartyMember", m_pOverlayHandler), V8_PROPERTY_ATTRIBUTE_NONE);
     m_pCoreObject->SetValue("changePartyLeader", CefV8Value::CreateFunction("changePartyLeader", m_pOverlayHandler), V8_PROPERTY_ATTRIBUTE_NONE);
     m_pCoreObject->SetValue("teleportToPlayer", CefV8Value::CreateFunction("teleportToPlayer", m_pOverlayHandler), V8_PROPERTY_ATTRIBUTE_NONE);
+    for (const char* name : {"tradeInvite", "tradeAccept", "tradeDecline", "tradeCancel", "tradeSetOffer", "tradeSetReady"})
+        m_pCoreObject->SetValue(name, CefV8Value::CreateFunction(name, m_pOverlayHandler), V8_PROPERTY_ATTRIBUTE_NONE);
     m_pCoreObject->SetValue("toggleDebugUI", CefV8Value::CreateFunction("toggleDebugUI", m_pOverlayHandler), V8_PROPERTY_ATTRIBUTE_NONE);
     m_pCoreObject->SetValue("openPlayGuide", CefV8Value::CreateFunction("openPlayGuide", m_pOverlayHandler), V8_PROPERTY_ATTRIBUTE_NONE);
 }

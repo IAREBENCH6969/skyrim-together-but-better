@@ -29,6 +29,7 @@ import { OrderComponent } from './components/order/order.component';
 import { PartyMenuComponent } from './components/party-menu/party-menu.component';
 import { PlayerListComponent } from './components/player-list/player-list.component';
 import { PlayerManagerComponent } from './components/player-manager/player-manager.component';
+import { TradeComponent } from './components/trade/trade.component';
 import { PopupComponent } from './components/popup/popup.component';
 import { RootComponent } from './components/root/root.component';
 import { ServerListComponent } from './components/server-list/server-list.component';
@@ -75,6 +76,7 @@ import { TranslocoRootModule } from './transloco-root.module';
     ServerListComponent,
     SettingsComponent,
     ToggleComponent,
+    TradeComponent,
     WindowComponent,
     CheckboxDirective,
     HealthDirective,

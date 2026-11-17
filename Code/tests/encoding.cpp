@@ -13,6 +13,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <Messages/TradeRequest.h>
+#include <Messages/NotifyTrade.h>
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/ServerMessageFactory.h>
 #include <Structs/Vector2_NetQuantize.h>
@@ -770,5 +772,61 @@ TEST_CASE("StringCache", "[encoding.string_cache]")
         recvUpdate.DeserializeRaw(reader);
 
         REQUIRE(update == recvUpdate);
+    }
+}
+
+TEST_CASE("Trade messages", "[encoding.packets]")
+{
+    Inventory::Entry gold{};
+    gold.BaseId = GameId(0, 0xF);
+    gold.Count = 250;
+
+    Inventory::Entry potion{};
+    potion.BaseId = GameId(0xFFFFFFFF, 0);
+    potion.Count = 2;
+    potion.CustomAlchemy.Effects.push_back({10.f, 0, 0, 1.5f, GameId(0, 0x3EB15)});
+
+    SECTION("TradeRequest")
+    {
+        Buffer buff(1000);
+        TradeRequest sendMessage, recvMessage;
+        sendMessage.Action = TradeAction::UpdateOffer;
+        sendMessage.PlayerId = 7;
+        sendMessage.Ready = true;
+        sendMessage.Offer.Entries.push_back(gold);
+        sendMessage.Offer.Entries.push_back(potion);
+
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+        REQUIRE(recvMessage.Offer.Entries.size() == 2);
+        REQUIRE(recvMessage.Offer.Entries[1].CustomAlchemy == potion.CustomAlchemy);
+    }
+
+    SECTION("NotifyTrade")
+    {
+        Buffer buff(1000);
+        NotifyTrade sendMessage, recvMessage;
+        sendMessage.Event = TradeEvent::Closed;
+        sendMessage.PartnerId = 3;
+        sendMessage.Reason = TradeCloseReason::Failed;
+        sendMessage.SelfReady = true;
+        sendMessage.PartnerReady = false;
+        sendMessage.Items.Entries.push_back(gold);
+
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+        REQUIRE(recvMessage.Reason == TradeCloseReason::Failed);
     }
 }

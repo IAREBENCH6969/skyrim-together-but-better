@@ -4,6 +4,7 @@ import { map } from 'rxjs/operators';
 import { ClientService } from 'src/app/services/client.service';
 import { GroupService } from 'src/app/services/group.service';
 import { PlayerListService } from 'src/app/services/player-list.service';
+import { TradeService } from 'src/app/services/trade.service';
 import { Player } from '../../models/player';
 
 @Component({
@@ -17,12 +18,15 @@ export class PlayerListComponent {
   playerList$: Observable<(Player & { isMember: boolean })[]>;
   playerListLength$: Observable<number>;
   isPartyLeader$: Observable<boolean>;
+  isTrading$: Observable<boolean>;
 
   constructor(
     private readonly playerListService: PlayerListService,
     private readonly clientService: ClientService,
     private readonly groupService: GroupService,
+    private readonly tradeService: TradeService,
   ) {
+    this.isTrading$ = this.tradeService.session.pipe(map(s => !!s));
     this.playerList$ = combineLatest([
       this.playerListService.playerList.asObservable().pipe(pluck('players')),
       this.groupService.group.asObservable().pipe(pluck('members')),
@@ -58,5 +62,9 @@ export class PlayerListComponent {
 
   public sendPartyInvite(inviteeId: number) {
     this.playerListService.sendPartyInvite(inviteeId);
+  }
+
+  public sendTradeInvite(playerId: number) {
+    this.tradeService.invite(playerId);
   }
 }

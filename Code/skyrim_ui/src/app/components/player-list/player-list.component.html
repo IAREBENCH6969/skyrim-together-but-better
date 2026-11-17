@@ -30,6 +30,13 @@
               >
                 {{ 'COMPONENT.PARTY_LIST.INVITE' | transloco }}
               </button>
+              <button
+                class="user-action-button"
+                [disabled]="isTrading$ | async"
+                (click)="sendTradeInvite(player.id)"
+              >
+                {{ 'COMPONENT.PARTY_LIST.TRADE' | transloco }}
+              </button>
             </td>
           </tr>
         }

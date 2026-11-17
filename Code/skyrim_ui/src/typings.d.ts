@@ -96,6 +96,16 @@ declare namespace SkyrimTogetherTypes {
   type PartyInviteReceivedCallback = (inviterId: number) => void;
 
   type QuestUpdatedCallback = () => void;
+
+  /** Player-to-player trade events (see TradeService). */
+  type TradeEvent =
+    | 'tradeInvited'
+    | 'tradeOpened'
+    | 'tradePartnerOffer'
+    | 'tradeMyOffer'
+    | 'tradeState'
+    | 'tradeHandingOver'
+    | 'tradeClosed';
 }
 
 /** Global Skyrim: Together object. */
@@ -224,6 +234,16 @@ interface SkyrimTogether {
   on(
     event: 'questUpdated',
     callback: SkyrimTogetherTypes.QuestUpdatedCallback,
+  ): void;
+
+  on(
+    event: SkyrimTogetherTypes.TradeEvent,
+    callback: (...args: any[]) => void,
+  ): void;
+
+  off(
+    event: SkyrimTogetherTypes.TradeEvent,
+    callback?: (...args: any[]) => void,
   ): void;
 
   /** Remove listener from when the application is first initialized. */
@@ -449,4 +469,22 @@ interface SkyrimTogether {
    * Open the play guide on the wiki in the default browser.
    */
   openPlayGuide(): void;
+
+  /** Ask a player to trade. */
+  tradeInvite(playerId: number): void;
+
+  /** Accept a player's trade request. */
+  tradeAccept(inviterId: number): void;
+
+  /** Decline a player's trade request. */
+  tradeDecline(inviterId: number): void;
+
+  /** Close the open trade, or withdraw a trade request. */
+  tradeCancel(): void;
+
+  /** Offer this many of an item (by its index in the trade's inventory list); 0 takes it out of the offer. */
+  tradeSetOffer(itemIndex: number, count: number): void;
+
+  /** Accept (or stop accepting) the current offers. */
+  tradeSetReady(ready: boolean): void;
 }

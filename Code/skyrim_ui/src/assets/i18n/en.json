@@ -74,7 +74,8 @@
         "NAME": "Name",
         "LOCATION": "Location"
       },
-      "INVITE": "Invite"
+      "INVITE": "Invite",
+      "TRADE": "Trade"
     },
     "PLAYER_MANAGER": {
       "PLAYER_LIST": "Player List",
@@ -145,6 +146,43 @@
         "XL": "Extra Large"
       },
       "BACK": "Back"
+    },
+    "TRADE": {
+      "TITLE": "Trade with {{name}}",
+      "YOUR_INVENTORY": "Your inventory",
+      "YOUR_OFFER": "Your offer",
+      "THEIR_OFFER": "{{name}}'s offer",
+      "CATEGORY": {
+        "ALL": "All",
+        "WEAPONS": "Weapons",
+        "APPAREL": "Apparel",
+        "POTIONS": "Potions",
+        "INGREDIENTS": "Ingredients",
+        "BOOKS": "Books",
+        "MISC": "Misc"
+      },
+      "SEARCH": "Search",
+      "ITEM": "Item",
+      "VALUE": "Value",
+      "WEIGHT": "Weight",
+      "COUNT": "Count",
+      "ENCHANTED": "Enchanted",
+      "POISONED": "Poisoned",
+      "NOTHING_TO_TRADE": "Nothing to trade here",
+      "OFFER_EMPTY": "Nothing offered yet",
+      "CLICK_TO_REMOVE": "Click to take it back",
+      "HOW_MANY": "How many?",
+      "OK": "OK",
+      "BACK": "Back",
+      "YOU_DECIDING": "You haven't accepted",
+      "YOU_ACCEPTED": "You accepted",
+      "THEY_DECIDING": "{{name}} hasn't accepted",
+      "THEY_ACCEPTED": "{{name}} accepted",
+      "ACCEPT": "Accept trade",
+      "CHANGE_MIND": "Change my mind",
+      "CANCEL": "Cancel",
+      "EXCHANGING": "Exchanging items...",
+      "HINT": "Equipped and quest items can't be traded. Changing an offer means both players accept again."
     }
   },
   "SERVICE": {
@@ -183,6 +221,17 @@
     },
     "PARTY_HINT": {
       "MESSAGE": "Want to quest together? Form a party and stay close to share quest progress! Check out our play guide to learn more."
+    },
+    "TRADE": {
+      "INVITE": "{{from}} wants to trade with you",
+      "INVITE_SENT": "Trade request sent to {{name}}",
+      "COMPLETED": "Trade with {{name}} complete",
+      "CANCELLED": "The trade with {{name}} was cancelled",
+      "DECLINED": "{{name}} declined to trade",
+      "BUSY": "{{name}} is already trading",
+      "DISCONNECTED": "{{name}} left, the trade was cancelled",
+      "FAILED": "The trade with {{name}} failed; anything you gave was returned",
+      "EXPIRED": "The trade request with {{name}} expired"
     }
   }
 }

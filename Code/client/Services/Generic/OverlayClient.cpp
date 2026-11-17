@@ -76,6 +76,8 @@ bool OverlayClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefR
             uint32_t aPlayerId = eventArgs->GetInt(0);
             World::Get().GetPartyService().ChangePartyLeader(aPlayerId);
         }
+        else if (eventName.starts_with("trade"))
+            ProcessTradeMessage(eventName, eventArgs);
         else if (eventName == "teleportToPlayer")
             ProcessTeleportMessage(eventArgs);
         else if (eventName == "toggleDebugUI")
@@ -145,6 +147,30 @@ void OverlayClient::ProcessTeleportMessage(CefRefPtr<CefListValue> aEventArgs)
     request.PlayerId = aEventArgs->GetInt(0);
 
     m_transport.Send(request);
+}
+
+void OverlayClient::ProcessTradeMessage(const std::string& acEventName, CefRefPtr<CefListValue> aEventArgs)
+{
+    const int cFirst = aEventArgs->GetSize() > 0 ? aEventArgs->GetInt(0) : 0;
+    const int cSecond = aEventArgs->GetSize() > 1 ? aEventArgs->GetInt(1) : 0;
+    const bool cFlag = aEventArgs->GetSize() > 0 && aEventArgs->GetBool(0);
+
+    // The trade service touches the inventory and the network, so run on the game thread.
+    World::Get().GetRunner().Queue([acEventName, cFirst, cSecond, cFlag]() {
+        auto& trade = World::Get().GetTradeService();
+        if (acEventName == "tradeInvite")
+            trade.Invite(cFirst);
+        else if (acEventName == "tradeAccept")
+            trade.Accept(cFirst);
+        else if (acEventName == "tradeDecline")
+            trade.Decline(cFirst);
+        else if (acEventName == "tradeCancel")
+            trade.Cancel();
+        else if (acEventName == "tradeSetOffer")
+            trade.SetOfferCount(cFirst, cSecond);
+        else if (acEventName == "tradeSetReady")
+            trade.SetReady(cFlag);
+    });
 }
 
 void OverlayClient::ProcessToggleDebugUI()

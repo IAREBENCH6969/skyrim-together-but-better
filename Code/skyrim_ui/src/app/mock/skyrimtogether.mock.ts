@@ -197,6 +197,90 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
     );
   }
 
+  // --- Trading (mock partner: answers after a short delay) ---
+  private tradePartner = 0;
+  private tradeSelfReady = false;
+  private tradeOffer: Record<number, number> = {};
+  private readonly tradeInventory = [
+    { i: 0, n: 'Gold', c: 1250, v: 1, w: 0, t: 'gold', e: false, p: false },
+    { i: 1, n: 'Iron Dagger', c: 2, v: 10, w: 2, t: 'weapons', e: false, p: false },
+    { i: 2, n: 'Steel Sword of Burning', c: 1, v: 284, w: 10, t: 'weapons', e: true, p: false },
+    { i: 3, n: 'Hide Helmet', c: 1, v: 23, w: 2, t: 'apparel', e: false, p: false },
+    { i: 4, n: 'Potion of Fortify Health', c: 3, v: 36, w: 0.5, t: 'potions', e: false, p: false },
+    { i: 5, n: 'Poison of Damage Health', c: 2, v: 41, w: 0.5, t: 'potions', e: false, p: false },
+    { i: 6, n: 'Blue Mountain Flower', c: 7, v: 2, w: 0.1, t: 'ingredients', e: false, p: false },
+    { i: 7, n: 'The Lusty Argonian Maid', c: 1, v: 25, w: 1, t: 'books', e: false, p: false },
+    { i: 8, n: 'Petty Soul Gem', c: 4, v: 10, w: 0.1, t: 'misc', e: false, p: false },
+    { i: 9, n: 'Iron Ingot', c: 5, v: 7, w: 1, t: 'misc', e: false, p: false },
+  ];
+
+  tradeInvite(playerId: number): void {
+    setTimeout(() => {
+      this.tradePartner = playerId;
+      this.tradeOffer = {};
+      this.tradeSelfReady = false;
+      this.emit('tradeOpened', playerId, JSON.stringify(this.tradeInventory));
+      setTimeout(
+        () =>
+          this.emit(
+            'tradePartnerOffer',
+            JSON.stringify([
+              { i: 0, n: 'Gold', c: 300, v: 1, w: 0, t: 'gold', e: false, p: false },
+              { i: 1, n: 'Ebony Dagger', c: 1, v: 290, w: 5, t: 'weapons', e: false, p: true },
+            ]),
+          ),
+        800,
+      );
+    }, 400);
+  }
+
+  tradeAccept(inviterId: number): void {
+    this.tradeInvite(inviterId);
+  }
+
+  tradeDecline(inviterId: number): void {}
+
+  tradeCancel(): void {
+    if (this.tradePartner) {
+      const partner = this.tradePartner;
+      this.tradePartner = 0;
+      this.emit('tradeClosed', 1, partner);
+    }
+  }
+
+  tradeSetOffer(itemIndex: number, count: number): void {
+    this.tradeOffer[itemIndex] = count;
+    if (!count) {
+      delete this.tradeOffer[itemIndex];
+    }
+    this.tradeSelfReady = false;
+    this.emit('tradeMyOffer', JSON.stringify(this.tradeOffer));
+    this.emit('tradeState', false, false);
+  }
+
+  tradeSetReady(ready: boolean): void {
+    this.tradeSelfReady = ready;
+    this.emit('tradeState', ready, false);
+    if (ready) {
+      setTimeout(() => {
+        if (!this.tradeSelfReady || !this.tradePartner) {
+          return;
+        }
+        this.emit('tradeState', true, true);
+        this.emit('tradeHandingOver');
+        setTimeout(() => {
+          const partner = this.tradePartner;
+          this.tradePartner = 0;
+          this.emit('tradeClosed', 0, partner);
+        }, 1200);
+      }, 1500);
+    }
+  }
+
+  mockTradeInvite(playerId: number) {
+    this.emit('tradeInvited', playerId);
+  }
+
   initMock() {
     Object.keys((this as any)._events).forEach(e => {
       this.on(e, (...params) => {

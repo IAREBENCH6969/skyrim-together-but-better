@@ -17,6 +17,7 @@ import {
   fontSizeToPixels,
 } from '../../services/setting.service';
 import { Sound, SoundService } from '../../services/sound.service';
+import { TradeService } from '../../services/trade.service';
 import { UiRepository } from '../../store/ui.repository';
 import { ChatComponent } from '../chat/chat.component';
 import { GroupComponent } from '../group/group.component';
@@ -64,6 +65,8 @@ export class RootComponent implements OnInit {
     private readonly uiRepository: UiRepository,
     private readonly translocoService: TranslocoService,
     private readonly settingService: SettingService,
+    // Created here so trade invitations are heard from the start.
+    private readonly tradeService: TradeService,
     public readonly overlay: Overlay, // used for mockup
   ) {
     this.translocoService.setActiveLang(

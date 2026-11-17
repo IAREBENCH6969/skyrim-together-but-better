@@ -1,0 +1,321 @@
+@use 'env';
+@use 'functions/mod';
+
+// Laid out like the game's barter menu (your items on one side, the other party's on the other), drawn with the
+// overlay's own Skyrim-style pieces: the fancy frame (from app-popup), Futura Condensed, the arrow ornaments on
+// buttons, and the single-line separators.
+
+$text: mod.mod(env.$color-background, 1);
+$dim: 0.55;
+$row-height: 1.9rem;
+$highlight: linear-gradient(
+  to right,
+  transparent,
+  rgba(255, 255, 255, 0.1) 15%,
+  rgba(255, 255, 255, 0.1) 85%,
+  transparent
+);
+
+:host {
+  display: flex;
+  flex-direction: column;
+  width: min(68vw, 64rem);
+  max-height: 84vh;
+  letter-spacing: 0.04em;
+}
+
+.title {
+  margin: 0 0 0.75rem;
+  font-size: 1.6rem;
+  font-weight: normal;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.separator {
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 2rem;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+// Category tabs, like the inventory's category column but laid out across.
+.categories {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+
+  button {
+    font-size: 0.8rem;
+    padding: 0.25rem 0;
+    white-space: nowrap;
+
+    &::before {
+      margin-right: 0.2rem;
+    }
+
+    &::after {
+      margin-left: 0.2rem;
+    }
+  }
+}
+
+.search {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.list-header,
+.row {
+  display: grid;
+  grid-template-columns: 1fr 3.5rem 3.5rem 3.5rem;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+
+.offers .row {
+  grid-template-columns: 1fr 3.5rem;
+}
+
+.list-header {
+  padding: 0 0.75rem 0.3rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  opacity: $dim;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.list {
+  overflow-y: auto;
+  min-height: 6rem;
+  flex: 1 1 auto;
+  padding-right: 0.25rem;
+}
+
+// Fixed heights, so the window doesn't jump around while filtering or offering.
+.inventory .list {
+  height: 38vh;
+  flex: 0 0 auto;
+}
+
+.offers .list {
+  height: 15vh;
+  flex: 0 0 auto;
+}
+
+.row {
+  position: relative;
+  width: 100%;
+  min-height: $row-height;
+  padding: 0.2rem 0.75rem;
+  font-size: 1rem;
+  text-transform: none;
+  text-align: left;
+  opacity: $dim;
+  transition:
+    opacity env.$time-transition,
+    background env.$time-transition;
+
+  // The game marks the selected entry with a soft bar and brighter text.
+  &:hover:not([disabled]):not(.static),
+  &.picking {
+    opacity: 1;
+    background: $highlight;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 0.55rem;
+    height: 0.55rem;
+    transform: translateY(-50%);
+    background: url('../../../assets/images/arrow/east.svg') center / contain
+      no-repeat;
+    opacity: 0;
+    transition: opacity env.$time-transition;
+  }
+
+  &:hover:not([disabled]):not(.static)::before,
+  &.picking::before {
+    opacity: 1;
+  }
+
+  &.static {
+    opacity: 0.85;
+  }
+
+  &.offered {
+    opacity: 0.85;
+  }
+}
+
+.offered-count {
+  opacity: 0.7;
+}
+
+.tag {
+  margin-left: 0.4rem;
+  font-size: 0.75em;
+  opacity: 0.75;
+}
+
+.empty {
+  margin: 1rem 0;
+  text-align: center;
+  opacity: $dim;
+  font-style: italic;
+}
+
+// "How many?", like the game's quantity slider.
+.how-many {
+  margin-top: 0.75rem;
+
+  .how-many-item {
+    margin: 0 0 0.5rem;
+    text-align: center;
+  }
+
+  .how-many-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    input[type='range'] {
+      flex: 1 1 auto;
+    }
+
+    .how-many-value {
+      width: 4rem;
+      text-align: center;
+    }
+
+    button {
+      font-size: 1.2rem;
+      padding: 0 0.25rem;
+    }
+  }
+
+  .how-many-actions {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 0.5rem;
+  }
+}
+
+.offers {
+  gap: 1.25rem;
+}
+
+.offer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0.25rem 0;
+  transition: box-shadow env.$time-transition;
+}
+
+.summary {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.status {
+  margin-top: 0.35rem;
+  text-align: center;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  opacity: $dim;
+
+  &::before {
+    content: '◇ ';
+  }
+
+  &.ready {
+    opacity: 1;
+
+    &::before {
+      content: '◆ ';
+    }
+  }
+}
+
+hr {
+  width: 100%;
+  margin: 1rem 0 0.5rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 3rem;
+  min-height: 2.4rem;
+
+  button {
+    font-size: 1.1rem;
+    letter-spacing: 0.1em;
+  }
+
+  button[disabled] {
+    opacity: 0.25;
+  }
+}
+
+.handing-over {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  animation: pulse 1.2s ease-in-out infinite alternate;
+}
+
+.hint {
+  margin: 0.4rem 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.45;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}

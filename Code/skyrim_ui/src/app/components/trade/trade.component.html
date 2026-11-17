@@ -1,0 +1,198 @@
+@if (view$ | async; as v) {
+  <ng-container *transloco="let t; read: 'COMPONENT.TRADE'">
+    <h1 class="title">
+      {{ t('TITLE', { name: v.session.partnerName }) }}
+    </h1>
+
+    <div class="columns">
+      <!-- Your inventory -->
+      <section class="inventory">
+        <div class="separator">
+          <span>{{ t('YOUR_INVENTORY') }}</span>
+        </div>
+
+        <div class="categories">
+          @for (category of categories; track category) {
+            <button
+              data-style-ornament="inverted"
+              [attr.data-style-active]="(category$ | async) === category"
+              (click)="setCategory(category)"
+            >
+              {{ t('CATEGORY.' + category.toUpperCase()) }}
+            </button>
+          }
+        </div>
+
+        <input
+          type="text"
+          class="search"
+          [placeholder]="t('SEARCH')"
+          [value]="search$ | async"
+          (input)="setSearch($any($event.target).value)"
+        />
+
+        <div class="list-header">
+          <span class="name">{{ t('ITEM') }}</span>
+          <span class="num">{{ t('VALUE') }}</span>
+          <span class="num">{{ t('WEIGHT') }}</span>
+          <span class="num">{{ t('COUNT') }}</span>
+        </div>
+        <div class="list">
+          @for (row of v.rows; track trackItem($index, row)) {
+            <button
+              class="row"
+              [class.offered]="row.offered > 0"
+              [class.picking]="picking?.i === row.item.i"
+              [disabled]="v.session.handingOver"
+              (click)="pick(row, v.session)"
+            >
+              <span class="name">
+                {{ row.item.n }}
+                @if (row.item.e) {
+                  <fa-icon class="tag" [icon]="enchantedIcon" [title]="t('ENCHANTED')"></fa-icon>
+                }
+                @if (row.item.p) {
+                  <fa-icon class="tag" [icon]="poisonedIcon" [title]="t('POISONED')"></fa-icon>
+                }
+              </span>
+              <span class="num">{{ row.item.v >= 0 ? row.item.v : '—' }}</span>
+              <span class="num">{{ row.item.w | number: '1.0-1' }}</span>
+              <span class="num">
+                @if (row.offered > 0) {
+                  <span class="offered-count">{{ row.offered }}/</span>
+                }{{ row.item.c }}
+              </span>
+            </button>
+          } @empty {
+            <p class="empty">{{ t('NOTHING_TO_TRADE') }}</p>
+          }
+        </div>
+
+        @if (picking) {
+          <div class="how-many">
+            <div class="separator">
+              <span>{{ t('HOW_MANY') }}</span>
+            </div>
+            <p class="how-many-item">{{ picking.n }}</p>
+            <div class="how-many-controls">
+              <button data-style-ornament="simple" (click)="stepPick(-1)">
+                −
+              </button>
+              <input
+                type="range"
+                min="0"
+                [max]="picking.c"
+                [value]="pickCount"
+                (input)="setPickCount($any($event.target).value)"
+              />
+              <button data-style-ornament="simple" (click)="stepPick(1)">
+                +
+              </button>
+              <input
+                type="text"
+                class="how-many-value"
+                [value]="pickCount"
+                (change)="setPickCount($any($event.target).value)"
+              />
+            </div>
+            <div class="how-many-actions">
+              <button data-style-ornament="simple" (click)="confirmPick()">
+                {{ t('OK') }}
+              </button>
+              <button data-style-ornament="simple" (click)="cancelPick()">
+                {{ t('BACK') }}
+              </button>
+            </div>
+          </div>
+        }
+      </section>
+
+      <!-- Both offers -->
+      <section class="offers">
+        <div class="offer" [class.ready]="v.session.selfReady">
+          <div class="separator">
+            <span>{{ t('YOUR_OFFER') }}</span>
+          </div>
+          <div class="list">
+            @for (row of v.offer; track trackItem($index, row)) {
+              <button
+                class="row"
+                [disabled]="v.session.handingOver"
+                [title]="t('CLICK_TO_REMOVE')"
+                (click)="withdraw(row, v.session)"
+              >
+                <span class="name">{{ row.item.n }}</span>
+                <span class="num">{{ row.count }}</span>
+              </button>
+            } @empty {
+              <p class="empty">{{ t('OFFER_EMPTY') }}</p>
+            }
+          </div>
+          <div class="summary">
+            <span>{{ t('VALUE') }} {{ v.offerValue }}</span>
+            <span>{{ t('WEIGHT') }} {{ v.offerWeight | number: '1.0-1' }}</span>
+          </div>
+          <div class="status" [class.ready]="v.session.selfReady">
+            {{ v.session.selfReady ? t('YOU_ACCEPTED') : t('YOU_DECIDING') }}
+          </div>
+        </div>
+
+        <div class="offer partner" [class.ready]="v.session.partnerReady">
+          <div class="separator">
+            <span>{{ t('THEIR_OFFER', { name: v.session.partnerName }) }}</span>
+          </div>
+          <div class="list">
+            @for (row of v.session.partnerOffer; track $index) {
+              <div class="row static">
+                <span class="name">
+                  {{ row.n }}
+                  @if (row.e) {
+                    <fa-icon class="tag" [icon]="enchantedIcon" [title]="t('ENCHANTED')"></fa-icon>
+                  }
+                  @if (row.p) {
+                    <fa-icon class="tag" [icon]="poisonedIcon" [title]="t('POISONED')"></fa-icon>
+                  }
+                </span>
+                <span class="num">{{ row.c }}</span>
+              </div>
+            } @empty {
+              <p class="empty">{{ t('OFFER_EMPTY') }}</p>
+            }
+          </div>
+          <div class="summary">
+            <span>{{ t('VALUE') }} {{ v.partnerValue }}</span>
+            <span>{{ t('WEIGHT') }} {{ v.partnerWeight | number: '1.0-1' }}</span>
+          </div>
+          <div class="status" [class.ready]="v.session.partnerReady">
+            {{
+              v.session.partnerReady
+                ? t('THEY_ACCEPTED', { name: v.session.partnerName })
+                : t('THEY_DECIDING', { name: v.session.partnerName })
+            }}
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <hr />
+
+    <div class="actions">
+      @if (v.session.handingOver) {
+        <span class="handing-over">{{ t('EXCHANGING') }}</span>
+      } @else {
+        <button
+          data-style-ornament="simple"
+          [attr.data-style-active]="v.session.selfReady"
+          [disabled]="!v.offer.length && !v.session.partnerOffer.length"
+          (click)="toggleReady(v.session)"
+        >
+          {{ v.session.selfReady ? t('CHANGE_MIND') : t('ACCEPT') }}
+        </button>
+        <button data-style-ornament="simple" (click)="cancel()">
+          {{ t('CANCEL') }}
+        </button>
+      }
+    </div>
+    <p class="hint">{{ t('HINT') }}</p>
+  </ng-container>
+}

@@ -125,6 +125,11 @@
           <app-player-manager (done)="closeView()"></app-player-manager>
         </app-popup>
       }
+      @case (RootView.TRADE) {
+        <app-popup data-popup="trade">
+          <app-trade (done)="closeView()"></app-trade>
+        </app-popup>
+      }
     }
     <app-error></app-error>
   </div>
