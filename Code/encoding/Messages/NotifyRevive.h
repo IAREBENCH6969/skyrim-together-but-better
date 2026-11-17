@@ -25,10 +25,12 @@ struct NotifyRevive final : ServerMessage
 
     bool operator==(const NotifyRevive& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Event == acRhs.Event && PlayerId == acRhs.PlayerId && Health == acRhs.Health;
+        return GetOpcode() == acRhs.GetOpcode() && Event == acRhs.Event && PlayerId == acRhs.PlayerId && Health == acRhs.Health && Seconds == acRhs.Seconds;
     }
 
     ReviveEvent Event{};
     uint32_t PlayerId{};
     float Health{};
+    // Downed: seconds until that player respawns if nobody revives them.
+    float Seconds{};
 };

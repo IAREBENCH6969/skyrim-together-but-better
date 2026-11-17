@@ -6,6 +6,7 @@ void NotifyRevive::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const no
     aWriter.WriteBits(static_cast<uint8_t>(Event), 8);
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteFloat(aWriter, Health);
+    Serialization::WriteFloat(aWriter, Seconds);
 }
 
 void NotifyRevive::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -17,4 +18,5 @@ void NotifyRevive::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexce
     Event = static_cast<ReviveEvent>(value);
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Health = Serialization::ReadFloat(aReader);
+    Seconds = Serialization::ReadFloat(aReader);
 }

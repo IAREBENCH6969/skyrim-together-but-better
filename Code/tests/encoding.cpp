@@ -625,6 +625,7 @@ TEST_CASE("Revive messages", "[encoding.packets]")
         sendMessage.Action = ReviveAction::Revive;
         sendMessage.PlayerId = 12;
         sendMessage.Health = 25.5f;
+        sendMessage.Seconds = 30.f;
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
         Buffer::Reader reader(&buff);
@@ -639,6 +640,7 @@ TEST_CASE("Revive messages", "[encoding.packets]")
         sendMessage.Event = ReviveEvent::Revived;
         sendMessage.PlayerId = 3;
         sendMessage.Health = 50.f;
+        sendMessage.Seconds = 12.5f;
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
         Buffer::Reader reader(&buff);

@@ -22,7 +22,7 @@ void ReviveService::OnReviveRequest(const PacketEvent<ReviveRequest>& acPacket) 
 
     switch (message.Action)
     {
-    case ReviveAction::Downed: SetDowned(cSenderId, true); break;
+    case ReviveAction::Downed: SetDowned(cSenderId, true, std::clamp(message.Seconds, 0.f, 600.f)); break;
     case ReviveAction::Up: SetDowned(cSenderId, false); break;
     case ReviveAction::Revive:
     {
@@ -52,7 +52,7 @@ void ReviveService::OnPlayerLeave(const PlayerLeaveEvent& acEvent) noexcept
     SetDowned(acEvent.pPlayer->GetId(), false);
 }
 
-void ReviveService::SetDowned(uint32_t aPlayerId, bool aDowned) noexcept
+void ReviveService::SetDowned(uint32_t aPlayerId, bool aDowned, float aSeconds) noexcept
 {
     const bool cWasDowned = m_downed.contains(aPlayerId);
     if (cWasDowned == aDowned)
@@ -66,6 +66,7 @@ void ReviveService::SetDowned(uint32_t aPlayerId, bool aDowned) noexcept
     NotifyRevive notify;
     notify.Event = aDowned ? ReviveEvent::Downed : ReviveEvent::Up;
     notify.PlayerId = aPlayerId;
+    notify.Seconds = aSeconds;
     for (auto pPlayer : m_world.GetPlayerManager())
     {
         if (pPlayer->GetId() != aPlayerId)

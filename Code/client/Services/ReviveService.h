@@ -30,8 +30,9 @@ struct ReviveService
     // Whether any other player is in the game with us (only then is it worth waiting for a revive).
     [[nodiscard]] bool HasOtherPlayers() const noexcept;
 
-    // From PlayerService: the local player went down / is up again.
-    void ReportDowned(bool aDowned) noexcept;
+    // From PlayerService: the local player went down (and respawns in aSeconds unless revived) / is up again. Also
+    // drives the on-screen countdown.
+    void ReportDowned(bool aDowned, float aSeconds = 0.f) noexcept;
 
     // The local player pressed Activate (E): revive the nearest downed player in reach and in front of them. Returns true
     // if there was one (the press is then used up by the revive attempt).
@@ -49,6 +50,8 @@ private:
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnServerSettings(const ServerSettings& acSettings) noexcept;
     void OnNotifyRevive(const NotifyRevive& acMessage) noexcept;
+    // Draws a revive marker above every downed player (ImGui, every frame), so they're easy to find.
+    void OnDraw() noexcept;
 
     uint32_t PlayerIdOf(TESObjectREFR* apActor) const noexcept;
     String NameOf(uint32_t aPlayerId) const noexcept;
@@ -57,7 +60,8 @@ private:
     TransportService& m_transport;
 
     float m_reviveWindow{};
-    TiltedPhoques::Set<uint32_t> m_downedPlayers;
+    // Downed players and when they respawn if nobody revives them.
+    TiltedPhoques::Map<uint32_t, std::chrono::steady_clock::time_point> m_downedPlayers;
     TiltedPhoques::Map<uint32_t, std::chrono::steady_clock::time_point> m_nextHint;
     std::chrono::steady_clock::time_point m_nextUpdate{};
     bool m_activateWasDown{};
@@ -66,4 +70,5 @@ private:
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_settingsConnection;
     entt::scoped_connection m_notifyConnection;
+    entt::scoped_connection m_drawConnection;
 };

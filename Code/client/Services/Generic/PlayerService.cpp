@@ -250,8 +250,7 @@ void PlayerService::RunRespawnUpdates() noexcept
         spdlog::info("[PlayerService]: down; respawn in {:.0f} s (revive window {:.0f}, other players {})", cWindow > 0.f ? cWindow : 5.f, revive.GetReviveWindow(), revive.HasOtherPlayers());
         if (cWindow > 0.f)
         {
-            revive.ReportDowned(true);
-            Utils::ShowHudMessage(String(fmt::format("You are down! Another player can revive you with a healing potion. Respawning in {:.0f} seconds", cWindow)));
+            revive.ReportDowned(true, cWindow);
         }
 
         // If a player dies not by its health reaching 0, getting it up from its bleedout state isn't possible

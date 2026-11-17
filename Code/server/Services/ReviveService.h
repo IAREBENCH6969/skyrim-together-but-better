@@ -23,7 +23,7 @@ private:
     void OnReviveRequest(const PacketEvent<ReviveRequest>& acPacket) noexcept;
     void OnPlayerLeave(const PlayerLeaveEvent& acEvent) noexcept;
 
-    void SetDowned(uint32_t aPlayerId, bool aDowned) noexcept;
+    void SetDowned(uint32_t aPlayerId, bool aDowned, float aSeconds = 0.f) noexcept;
 
     World& m_world;
     TiltedPhoques::Set<uint32_t> m_downed;

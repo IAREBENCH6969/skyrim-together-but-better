@@ -226,6 +226,14 @@ interface SkyrimTogether {
     callback: SkyrimTogetherTypes.QuestUpdatedCallback,
   ): void;
 
+  /** The local player is down: seconds until they respawn unless a teammate revives them. */
+  on(event: 'reviveDowned', callback: (seconds: number) => void): void;
+
+  /** The local player is up again; the name of who revived them, or empty. */
+  on(event: 'reviveUp', callback: (revivedBy: string) => void): void;
+
+  off(event: 'reviveDowned' | 'reviveUp', callback?: (...args: any[]) => void): void;
+
   /** Remove listener from when the application is first initialized. */
   off(event: 'init', callback?: SkyrimTogetherTypes.InitCallback): void;
 

@@ -145,6 +145,11 @@
         "XL": "Extra Large"
       },
       "BACK": "Back"
+    },
+    "DOWNED": {
+      "TITLE": "You are down",
+      "HINT": "A teammate can revive you with a healing potion",
+      "REVIVED_BY": "Revived by {{name}}"
     }
   },
   "SERVICE": {

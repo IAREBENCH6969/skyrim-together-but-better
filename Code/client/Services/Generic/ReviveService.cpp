@@ -21,6 +21,12 @@
 #include <PlayerCharacter.h>
 #include <Interface/UI.h>
 #include <Services/OverlayService.h>
+#include <Services/ImguiService.h>
+#include <BSGraphics/BSGraphicsRenderer.h>
+#include <Interface/Menus/HUDMenuUtils.h>
+#include <OverlayApp.hpp>
+
+#include <imgui.h>
 
 namespace
 {
@@ -54,6 +60,12 @@ bool PlayerIsInGame() noexcept
     return pUI && pUI->numPausesGame == 0 && !pUI->modal && !pUI->GetMenuOpen("Console") && !pUI->IsUnpausedMenuOpen();
 }
 
+void ExecuteUi(const char* acpEvent, CefRefPtr<CefListValue> apArguments) noexcept
+{
+    if (auto* pApp = World::Get().GetOverlayService().GetOverlayApp())
+        pApp->ExecuteAsync(acpEvent, apArguments);
+}
+
 const char* FormName(const TESForm* apForm) noexcept
 {
     const char* cpName = apForm ? reinterpret_cast<const MagicItem*>(apForm)->fullName.value.AsAscii() : nullptr;
@@ -69,16 +81,31 @@ ReviveService::ReviveService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&ReviveService::OnDisconnected>(this);
     m_settingsConnection = aDispatcher.sink<ServerSettings>().connect<&ReviveService::OnServerSettings>(this);
     m_notifyConnection = aDispatcher.sink<NotifyRevive>().connect<&ReviveService::OnNotifyRevive>(this);
+    m_drawConnection = aWorld.ctx().at<ImguiService>().OnDraw.connect<&ReviveService::OnDraw>(this);
 }
 
-void ReviveService::ReportDowned(bool aDowned) noexcept
+void ReviveService::ReportDowned(bool aDowned, float aSeconds) noexcept
 {
     if (!m_transport.IsConnected() || m_reviveWindow <= 0.f)
         return;
 
     ReviveRequest request;
     request.Action = aDowned ? ReviveAction::Downed : ReviveAction::Up;
+    request.Seconds = aSeconds;
     m_transport.Send(request);
+
+    // The countdown in the overlay ("reviveUp" with a name shows who revived us).
+    auto pArguments = CefListValue::Create();
+    if (aDowned)
+    {
+        pArguments->SetDouble(0, aSeconds);
+        ExecuteUi("reviveDowned", pArguments);
+    }
+    else
+    {
+        pArguments->SetString(0, "");
+        ExecuteUi("reviveUp", pArguments);
+    }
 }
 
 bool ReviveService::TryReviveNearby() noexcept
@@ -246,7 +273,7 @@ void ReviveService::OnNotifyRevive(const NotifyRevive& acMessage) noexcept
     switch (acMessage.Event)
     {
     case ReviveEvent::Downed:
-        m_downedPlayers.insert(acMessage.PlayerId);
+        m_downedPlayers[acMessage.PlayerId] = std::chrono::steady_clock::now() + std::chrono::milliseconds(static_cast<int64_t>(acMessage.Seconds * 1000.f));
         m_nextHint.erase(acMessage.PlayerId);
         spdlog::info("[ReviveService]: player {} is down", acMessage.PlayerId);
         Utils::ShowHudMessage(String(fmt::format("{} is down! Get to them and press E to use a healing potion", NameOf(acMessage.PlayerId))));
@@ -258,7 +285,11 @@ void ReviveService::OnNotifyRevive(const NotifyRevive& acMessage) noexcept
     case ReviveEvent::Revived:
         spdlog::info("[ReviveService]: revived by player {} ({} health)", acMessage.PlayerId, acMessage.Health);
         if (m_world.ctx().at<PlayerService>().Revive(acMessage.Health))
-            Utils::ShowHudMessage(String(fmt::format("{} revived you", NameOf(acMessage.PlayerId))));
+        {
+            auto pArguments = CefListValue::Create();
+            pArguments->SetString(0, NameOf(acMessage.PlayerId).c_str());
+            ExecuteUi("reviveUp", pArguments);
+        }
         break;
     default: break;
     }
@@ -282,6 +313,89 @@ bool ReviveService::HasOtherPlayers() const noexcept
             return true;
     }
     return false;
+}
+
+void ReviveService::OnDraw() noexcept
+{
+    if (m_downedPlayers.empty())
+        return;
+    UI* pUI = UI::Get();
+    if (!pUI || pUI->numPausesGame > 0) // not over the inventory, map, pause menu...
+        return;
+    auto* pWindow = BSGraphics::GetMainWindow();
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pWindow || !pPlayer)
+        return;
+
+    const float cWidth = static_cast<float>(pWindow->uiWindowWidth);
+    const float cHeight = static_cast<float>(pWindow->uiWindowHeight);
+    const float cScale = std::max(0.75f, cHeight / 1080.f);
+    const float cMargin = 48.f * cScale;
+    const auto cNow = std::chrono::steady_clock::now();
+    const float cClock = std::chrono::duration<float>(cNow.time_since_epoch()).count();
+
+    ImDrawList* pDraw = ImGui::GetBackgroundDrawList();
+    ImFont* pFont = ImGui::GetFont();
+    const float cFontSize = ImGui::GetFontSize() * 1.25f * cScale;
+
+    auto view = m_world.view<FormIdComponent, PlayerComponent>();
+    for (auto entity : view)
+    {
+        const auto cDowned = m_downedPlayers.find(view.get<PlayerComponent>(entity).Id);
+        if (cDowned == m_downedPlayers.end())
+            continue;
+        auto* pActor = Cast<Actor>(TESForm::GetById(view.get<FormIdComponent>(entity).Id));
+        if (!pActor || pActor == pPlayer || pActor->GetParentCellEx() != pPlayer->GetParentCellEx())
+            continue;
+
+        // Above the kneeling body.
+        NiPoint3 world = pActor->position;
+        world.z += 105.f;
+        NiPoint3 screen{};
+        HUDMenuUtils::WorldPtToScreenPt3(world, screen);
+
+        ImVec2 point{cWidth * screen.x, cHeight * (1.f - screen.y)};
+        const bool cBehind = screen.z < 0.f;
+        if (cBehind) // the projection mirrors points behind the camera
+            point = {cWidth - point.x, cHeight - point.y};
+        const bool cOnScreen = !cBehind && point.x >= cMargin && point.x <= cWidth - cMargin && point.y >= cMargin && point.y <= cHeight - cMargin;
+        if (!cOnScreen)
+        {
+            // Off screen: pin it to the edge, in their direction, so the player knows which way to turn.
+            point.x = std::clamp(point.x, cMargin, cWidth - cMargin);
+            point.y = cBehind ? cHeight - cMargin : std::clamp(point.y, cMargin, cHeight - cMargin);
+        }
+
+        const float cDx = pActor->position.x - pPlayer->position.x;
+        const float cDy = pActor->position.y - pPlayer->position.y;
+        const float cDz = pActor->position.z - pPlayer->position.z;
+        const int cMeters = static_cast<int>(std::sqrt(cDx * cDx + cDy * cDy + cDz * cDz) / 70.f);
+        const int cSecondsLeft = static_cast<int>(std::max(0.f, std::chrono::duration<float>(cDowned->second - cNow).count()) + 0.99f);
+
+        const float cRadius = (cOnScreen ? 17.f : 14.f) * cScale;
+        const float cPulse = std::fmod(cClock, 1.4f) / 1.4f;
+        const bool cUrgent = cSecondsLeft <= 10;
+        const ImU32 cCross = cUrgent && std::fmod(cClock, 0.6f) < 0.3f ? IM_COL32(255, 120, 100, 255) : IM_COL32(200, 40, 35, 255);
+
+        // Expanding ring to catch the eye, then the marker: dark disc, pale rim, red cross.
+        pDraw->AddCircle(point, cRadius + cPulse * 16.f * cScale, IM_COL32(210, 50, 40, static_cast<int>(190.f * (1.f - cPulse))), 40, 2.5f * cScale);
+        pDraw->AddCircleFilled({point.x + 1.5f * cScale, point.y + 2.5f * cScale}, cRadius + 2.f * cScale, IM_COL32(0, 0, 0, 120), 40);
+        pDraw->AddCircleFilled(point, cRadius, IM_COL32(20, 18, 16, 225), 40);
+        pDraw->AddCircle(point, cRadius, IM_COL32(232, 226, 210, 255), 40, 2.f * cScale);
+        const float cLong = cRadius * 0.58f;
+        const float cShort = cRadius * 0.2f;
+        pDraw->AddRectFilled({point.x - cShort, point.y - cLong}, {point.x + cShort, point.y + cLong}, cCross, 1.5f * cScale);
+        pDraw->AddRectFilled({point.x - cLong, point.y - cShort}, {point.x + cLong, point.y + cShort}, cCross, 1.5f * cScale);
+
+        // Name, distance and time left underneath, with a shadow so it reads on any background.
+        const std::string cLabel = fmt::format("{}  {} m  {} s", NameOf(cDowned->first).c_str(), cMeters, cSecondsLeft);
+        const ImVec2 cSize = pFont->CalcTextSizeA(cFontSize, FLT_MAX, 0.f, cLabel.c_str());
+        ImVec2 text{point.x - cSize.x * 0.5f, point.y + cRadius + 6.f * cScale};
+        text.x = std::clamp(text.x, 4.f, cWidth - cSize.x - 4.f);
+        text.y = std::min(text.y, cHeight - cSize.y - 4.f);
+        pDraw->AddText(pFont, cFontSize, {text.x + 1.f, text.y + 1.f}, IM_COL32(0, 0, 0, 220), cLabel.c_str());
+        pDraw->AddText(pFont, cFontSize, text, cUrgent ? IM_COL32(255, 170, 150, 255) : IM_COL32(240, 236, 224, 255), cLabel.c_str());
+    }
 }
 
 uint32_t ReviveService::PlayerIdOf(TESObjectREFR* apActor) const noexcept
