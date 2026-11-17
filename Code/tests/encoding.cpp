@@ -17,6 +17,8 @@
 #include <Messages/ReviveRequest.h>
 #include <Messages/NotifyRevive.h>
 #include <Messages/NotifyTrade.h>
+#include <Messages/NotifySetWaypoint.h>
+#include <Messages/NotifyRemoveWaypoint.h>
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/ServerMessageFactory.h>
 #include <Structs/Vector2_NetQuantize.h>
@@ -857,6 +859,38 @@ TEST_CASE("Revive messages", "[encoding.packets]")
         sendMessage.PlayerId = 3;
         sendMessage.Health = 50.f;
         sendMessage.Seconds = 12.5f;
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
+        REQUIRE(sendMessage == recvMessage);
+    }
+}
+
+TEST_CASE("Map marker messages", "[encoding.packets]")
+{
+    {
+        Buffer buff(100);
+        NotifySetWaypoint sendMessage, recvMessage;
+        sendMessage.PlayerId = 5;
+        sendMessage.Position.x = 1000.f;
+        sendMessage.Position.y = -2000.f;
+        sendMessage.Position.z = 300.f;
+        sendMessage.WorldSpaceFormID = GameId(0, 0x3C);
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
+        REQUIRE(sendMessage == recvMessage);
+    }
+    {
+        Buffer buff(100);
+        NotifyRemoveWaypoint sendMessage, recvMessage;
+        sendMessage.PlayerId = 9;
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
         Buffer::Reader reader(&buff);
