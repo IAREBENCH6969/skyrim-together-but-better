@@ -14,6 +14,7 @@
 #include <Events/BeastFormChangeEvent.h>
 
 #include <Messages/PlayerRespawnRequest.h>
+#include <Services/ReviveService.h>
 #include <Messages/NotifyPlayerRespawn.h>
 #include <Messages/ShiftGridCellRequest.h>
 #include <Messages/EnterExteriorCellRequest.h>
@@ -198,24 +199,59 @@ void PlayerService::RunRespawnUpdates() noexcept
     if (!m_isDeathSystemEnabled)
         return;
 
-    static bool s_startTimer = false;
-
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    const auto cNow = std::chrono::steady_clock::now();
+
+    if (m_reviving)
+    {
+        // Revived: once the game has the player standing again, bleedout goes back to unrecoverable for next time.
+        if (!pPlayer->actorState.IsBleedingOut())
+        {
+            pPlayer->SetNoBleedoutRecovery(true);
+            m_reviving = false;
+            spdlog::info("[PlayerService]: back on your feet after a revive");
+        }
+        else if (cNow >= m_reviveDeadline && !m_reviveMoved)
+        {
+            // Still on the ground: moving the player to where they are makes the game stand them up, like a respawn.
+            pPlayer->MoveTo(pPlayer->parentCell, pPlayer->position);
+            m_reviveMoved = true;
+            m_reviveDeadline = cNow + 3s;
+        }
+        else if (cNow >= m_reviveDeadline)
+        {
+            spdlog::warn("[PlayerService]: still down after a revive, respawning instead");
+            pPlayer->SetNoBleedoutRecovery(true);
+            m_reviving = false;
+        }
+        return;
+    }
+
     if (!pPlayer->actorState.IsBleedingOut())
     {
         m_cachedMainSpellId = pPlayer->magicItems[0] ? pPlayer->magicItems[0]->formID : 0;
         m_cachedSecondarySpellId = pPlayer->magicItems[1] ? pPlayer->magicItems[1]->formID : 0;
         m_cachedPowerId = pPlayer->equippedShout ? pPlayer->equippedShout->formID : 0;
 
-        s_startTimer = false;
+        m_downed = false;
         return;
     }
 
-    if (!s_startTimer)
+    auto& revive = m_world.ctx().at<ReviveService>();
+
+    if (!m_downed)
     {
-        s_startTimer = true;
-        m_respawnDeadline = std::chrono::steady_clock::now() + 5s;
-        FadeOutGame(true, true, 3.0f, true, 2.0f);
+        m_downed = true;
+        m_fadeStarted = false;
+
+        // With other players around, wait for one of them to revive this player with a healing potion.
+        const float cWindow = m_transport.IsConnected() && revive.HasOtherPlayers() ? revive.GetReviveWindow() : 0.f;
+        m_respawnDeadline = cNow + (cWindow > 0.f ? std::chrono::milliseconds(static_cast<int64_t>(cWindow * 1000.f)) : std::chrono::milliseconds(5000));
+        spdlog::info("[PlayerService]: down; respawn in {:.0f} s (revive window {:.0f}, other players {})", cWindow > 0.f ? cWindow : 5.f, revive.GetReviveWindow(), revive.HasOtherPlayers());
+        if (cWindow > 0.f)
+        {
+            revive.ReportDowned(true, cWindow);
+        }
 
         // If a player dies not by its health reaching 0, getting it up from its bleedout state isn't possible
         // just by setting its health back to max. Therefore, put it to 0.
@@ -225,14 +261,21 @@ void PlayerService::RunRespawnUpdates() noexcept
         pPlayer->PayCrimeGoldToAllFactions();
     }
 
-    const auto cNow = std::chrono::steady_clock::now();
+    if (!m_fadeStarted && cNow >= m_respawnDeadline - 3s)
+    {
+        FadeOutGame(true, true, 3.0f, true, 2.0f);
+        m_fadeStarted = true;
+    }
+
     if (cNow >= m_respawnDeadline)
     {
+        spdlog::info("[PlayerService]: nobody revived, respawning");
         pPlayer->RespawnPlayer();
 
         m_transport.Send(PlayerRespawnRequest());
+        revive.ReportDowned(false);
 
-        s_startTimer = false;
+        m_downed = false;
 
         auto* pEquipManager = EquipManager::Get();
         TESForm* pSpell = TESForm::GetById(m_cachedMainSpellId);
@@ -248,6 +291,33 @@ void PlayerService::RunRespawnUpdates() noexcept
         m_knockdownDeadline = std::chrono::steady_clock::now() + 1500ms;
         m_knockdownStart = true;
     }
+}
+
+bool PlayerService::Revive(float aHealth) noexcept
+{
+    if (!m_downed || m_reviving)
+        return false;
+
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    const float cMaxHealth = pPlayer->GetActorPermanentValue(ActorValueInfo::kHealth);
+    const float cHealth = std::clamp(aHealth, cMaxHealth * 0.25f, cMaxHealth);
+
+    // Bleedout recovery is turned off while connected (the death system); allow it until the player is standing.
+    pPlayer->SetNoBleedoutRecovery(false);
+    pPlayer->ForceActorValue(ActorValueOwner::ForceMode::DAMAGE, ActorValueInfo::kHealth, cHealth);
+    if (m_fadeStarted)
+        FadeOutGame(false, true, 0.5f, true, 0.5f);
+
+    m_downed = false;
+    m_fadeStarted = false;
+    m_reviving = true;
+    m_reviveMoved = false;
+    m_reviveDeadline = std::chrono::steady_clock::now() + 3s;
+    m_revives++;
+    m_world.ctx().at<ReviveService>().ReportDowned(false);
+
+    spdlog::info("[PlayerService]: revived with {:.0f} of {:.0f} health", cHealth, cMaxHealth);
+    return true;
 }
 
 // Doesn't seem to respawn quite yet

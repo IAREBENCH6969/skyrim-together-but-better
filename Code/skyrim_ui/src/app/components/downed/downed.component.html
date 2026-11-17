@@ -1,0 +1,18 @@
+@if (secondsLeft !== null) {
+  <div class="downed" [class.urgent]="urgent">
+    <div class="separator title">
+      <span>{{ 'COMPONENT.DOWNED.TITLE' | transloco }}</span>
+    </div>
+    <div class="seconds">{{ secondsLeft }}</div>
+    <div class="meter">
+      <div class="fill" [style.width.%]="fraction * 100"></div>
+    </div>
+    <p class="hint">{{ 'COMPONENT.DOWNED.HINT' | transloco }}</p>
+  </div>
+} @else if (revivedBy) {
+  <div class="downed revived">
+    <div class="separator title">
+      <span>{{ 'COMPONENT.DOWNED.REVIVED_BY' | transloco: { name: revivedBy } }}</span>
+    </div>
+  </div>
+}

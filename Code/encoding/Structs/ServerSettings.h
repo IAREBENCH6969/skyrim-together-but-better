@@ -18,4 +18,6 @@ struct ServerSettings
     bool SyncPlayerCalendar{};
     bool AutoPartyJoin{};
     bool ConsoleCommandsAllowed{true};
+    // Seconds a downed player can be revived by another player with a healing potion; 0 turns reviving off.
+    float ReviveWindow{};
 };

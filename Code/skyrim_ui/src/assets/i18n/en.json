@@ -183,6 +183,11 @@
       "CANCEL": "Cancel",
       "EXCHANGING": "Exchanging items...",
       "HINT": "Equipped and quest items can't be traded. Changing an offer means both players accept again."
+    },
+    "DOWNED": {
+      "TITLE": "You are down",
+      "HINT": "A teammate can revive you with a healing potion",
+      "REVIVED_BY": "Revived by {{name}}"
     }
   },
   "SERVICE": {

@@ -1,0 +1,121 @@
+@use 'env';
+
+// Sits in the upper middle of the screen like the game's own notices, in the overlay's font and separators, with a
+// soft shadow so it reads over the game.
+
+$pale: #f0ece0;
+$red: #c8302a;
+$shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9);
+
+:host {
+  position: fixed;
+  top: 16vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(34rem, 80vw);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.downed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: $pale;
+  text-shadow: $shadow;
+  animation: appear 400ms ease-out;
+}
+
+.title {
+  width: 100%;
+  font-size: 1.5rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+
+  &::before,
+  &::after {
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+  }
+}
+
+.seconds {
+  margin: 0.4rem 0 0.5rem;
+  font-size: 3.4rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+// Drains like the game's health meter, with the arrow ornaments at both ends.
+.meter {
+  position: relative;
+  width: 70%;
+  height: 0.55rem;
+  border: 1px solid rgba(240, 236, 224, 0.75);
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 0.9rem;
+    height: 0.9rem;
+    transform: translateY(-50%);
+    background: center / contain no-repeat;
+  }
+
+  &::before {
+    left: -1.3rem;
+    background-image: url('../../../assets/images/arrow/east.svg');
+  }
+
+  &::after {
+    right: -1.3rem;
+    background-image: url('../../../assets/images/arrow/west.svg');
+  }
+
+  .fill {
+    height: 100%;
+    background: linear-gradient(to bottom, #e0544c, $red 60%, #8e1d19);
+    transition: width 100ms linear;
+  }
+}
+
+.hint {
+  margin: 0.6rem 0 0;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+
+.urgent {
+  .seconds {
+    color: #ff8a7a;
+    animation: pulse 0.6s ease-in-out infinite alternate;
+  }
+}
+
+.revived .title {
+  color: $pale;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -26,6 +26,13 @@ struct PlayerService
 
     TP_NOCOPYMOVE(PlayerService);
 
+    // Another player used a healing potion on the downed local player: get up with that much health (at least a
+    // quarter of the maximum). Returns false if the player isn't down.
+    bool Revive(float aHealth) noexcept;
+    [[nodiscard]] bool IsDowned() const noexcept { return m_downed; }
+    // How many times the local player has been revived this session.
+    [[nodiscard]] uint32_t GetReviveCount() const noexcept { return m_revives; }
+
 protected:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
     void OnConnected(const ConnectedEvent& acEvent) noexcept;
@@ -59,6 +66,14 @@ private:
     TransportService& m_transport;
 
     std::chrono::steady_clock::time_point m_respawnDeadline;
+    // Down (bleedout) and waiting for a revive or the respawn.
+    bool m_downed = false;
+    bool m_fadeStarted = false;
+    // Revived, waiting for the game to stand the player up.
+    bool m_reviving = false;
+    bool m_reviveMoved = false;
+    uint32_t m_revives = 0;
+    std::chrono::steady_clock::time_point m_reviveDeadline;
     int32_t m_serverDifficulty = 6;
     int32_t m_previousDifficulty = 6;
 

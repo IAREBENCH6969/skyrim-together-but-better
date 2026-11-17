@@ -281,6 +281,14 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
     this.emit('tradeInvited', playerId);
   }
 
+  /** Browser preview of the downed countdown; then a revive after reviveAfter seconds (0: none). */
+  mockDowned(seconds = 30, reviveAfter = 0) {
+    this.emit('reviveDowned', seconds);
+    if (reviveAfter > 0) {
+      setTimeout(() => this.emit('reviveUp', 'Lydia'), reviveAfter * 1000);
+    }
+  }
+
   initMock() {
     Object.keys((this as any)._events).forEach(e => {
       this.on(e, (...params) => {

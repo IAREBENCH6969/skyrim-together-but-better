@@ -22,6 +22,7 @@
 #include <Services/WeatherService.h>
 #include <Services/MapService.h>
 #include <Services/SteamJoinService.h>
+#include <Services/ReviveService.h>
 
 #include <Events/PreUpdateEvent.h>
 #include <Events/UpdateEvent.h>
@@ -57,6 +58,7 @@ World::World()
     ctx().emplace<WeatherService>(*this, m_transport, m_dispatcher);
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<SteamJoinService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<ReviveService>(*this, m_dispatcher, m_transport);
 
     BehaviorVar::Get()->Init();
 }

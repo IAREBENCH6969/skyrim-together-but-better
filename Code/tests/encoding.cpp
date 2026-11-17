@@ -15,6 +15,8 @@
 
 #include <Messages/TradeRequest.h>
 #include <Messages/NotifyTrade.h>
+#include <Messages/ReviveRequest.h>
+#include <Messages/NotifyRevive.h>
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/ServerMessageFactory.h>
 #include <Structs/Vector2_NetQuantize.h>
@@ -796,6 +798,15 @@ TEST_CASE("Trade messages", "[encoding.packets]")
         sendMessage.Offer.Entries.push_back(gold);
         sendMessage.Offer.Entries.push_back(potion);
 
+TEST_CASE("Revive messages", "[encoding.packets]")
+{
+    {
+        Buffer buff(100);
+        ReviveRequest sendMessage, recvMessage;
+        sendMessage.Action = ReviveAction::Revive;
+        sendMessage.PlayerId = 12;
+        sendMessage.Health = 25.5f;
+        sendMessage.Seconds = 30.f;
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
         Buffer::Reader reader(&buff);
@@ -819,6 +830,15 @@ TEST_CASE("Trade messages", "[encoding.packets]")
         sendMessage.PartnerReady = false;
         sendMessage.Items.Entries.push_back(gold);
 
+        REQUIRE(sendMessage == recvMessage);
+    }
+    {
+        Buffer buff(100);
+        NotifyRevive sendMessage, recvMessage;
+        sendMessage.Event = ReviveEvent::Revived;
+        sendMessage.PlayerId = 3;
+        sendMessage.Health = 50.f;
+        sendMessage.Seconds = 12.5f;
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
         Buffer::Reader reader(&buff);
@@ -828,5 +848,6 @@ TEST_CASE("Trade messages", "[encoding.packets]")
 
         REQUIRE(sendMessage == recvMessage);
         REQUIRE(recvMessage.Reason == TradeCloseReason::Failed);
+        REQUIRE(sendMessage == recvMessage);
     }
 }
