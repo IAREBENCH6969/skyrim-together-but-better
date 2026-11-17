@@ -110,6 +110,12 @@ void TransportService::OnConsume(const void* apData, uint32_t aSize)
     m_messageHandlers[pMessage->GetOpcode()](pMessage);
 }
 
+bool TransportService::Connect(const std::string& acEndpoint) noexcept
+{
+    m_endpoint = acEndpoint;
+    return Client::Connect(acEndpoint);
+}
+
 void TransportService::OnConnected()
 {
     AuthenticationRequest request{};
