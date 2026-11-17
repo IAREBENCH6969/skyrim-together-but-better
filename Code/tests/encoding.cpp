@@ -914,6 +914,7 @@ TEST_CASE("Map marker messages", "[encoding.packets]")
         NotifyPlayerPositions::Entry inside = outside;
         inside.PlayerId = 600;
         inside.Inside = true;
+        inside.ColorIndex = 11;
         sendMessage.Players.push_back(outside);
         sendMessage.Players.push_back(inside);
 
@@ -927,5 +928,6 @@ TEST_CASE("Map marker messages", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
         REQUIRE(recvMessage.Players.size() == 2);
         REQUIRE(recvMessage.Players[1].Inside);
+        REQUIRE(recvMessage.Players[1].ColorIndex == 11);
     }
 }

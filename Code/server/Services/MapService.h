@@ -17,7 +17,8 @@ struct RequestRemoveWaypoint;
  * Each player keeps their own marker; the others see it (with the player's name) on their compass and world map,
  * next to their own. The server remembers the current markers so players who join later see them too.
  *
- * It also tells everyone where every player is, about once a second, so players show on each other's world map.
+ * It also tells everyone where every player is, about once a second, so players show on each other's world map
+ * and compass, and gives every player a colour slot of their own (the lowest free one, kept until they leave).
  */
 struct MapService
 {
@@ -50,10 +51,12 @@ struct MapService
 
     void SendToOthers(const ServerMessage& acMessage, uint32_t aPlayerId) const noexcept;
     void SendPlayerPositions() noexcept;
+    uint32_t ColorIndexOf(uint32_t aPlayerId) noexcept;
 
     World& m_world;
     TiltedPhoques::Map<uint32_t, Marker> m_markers;
     TiltedPhoques::Map<uint32_t, Outside> m_lastOutside;
+    TiltedPhoques::Map<uint32_t, uint32_t> m_colorIndex;
     uint64_t m_lastPositionsTick{};
 
     entt::scoped_connection m_playerSetWaypointConnection;

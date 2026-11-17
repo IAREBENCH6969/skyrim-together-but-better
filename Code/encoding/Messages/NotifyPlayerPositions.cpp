@@ -11,6 +11,7 @@ void NotifyPlayerPositions::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
         entry.Position.Serialize(aWriter);
         Serialization::WriteFloat(aWriter, entry.Heading);
         Serialization::WriteBool(aWriter, entry.Inside);
+        Serialization::WriteVarInt(aWriter, entry.ColorIndex);
     }
 }
 
@@ -28,6 +29,7 @@ void NotifyPlayerPositions::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReade
         entry.Position.Deserialize(aReader);
         entry.Heading = Serialization::ReadFloat(aReader);
         entry.Inside = Serialization::ReadBool(aReader);
+        entry.ColorIndex = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
         Players.push_back(entry);
     }
 }
