@@ -62,21 +62,18 @@ bool ProjectWithCamera(const NiCamera* apCamera, const NiPoint3& acPoint, NiPoin
                                         &aScreen.z, 1e-5f);
 }
 
-// Player colours, muted like Skyrim's own UI (no neon), readable on the compass and the snowy map, and far enough
-// apart to tell twelve players apart.
+// Player colours, muted like Skyrim's own UI (no neon), readable on the compass and the snowy map: one for each of
+// the 8 players a server allows by default (GameServer:uMaxPlayerCount), picked to be easy to tell apart. A server set
+// above 8 players reuses them.
 constexpr ImU32 kPlayerColors[] = {
     IM_COL32(212, 175, 92, 255),  // old gold
     IM_COL32(112, 164, 204, 255), // steel blue
     IM_COL32(196, 92, 78, 255),   // dragon's-blood red
     IM_COL32(128, 172, 104, 255), // moss green
     IM_COL32(168, 128, 196, 255), // amethyst
-    IM_COL32(204, 134, 82, 255),  // copper
+    IM_COL32(214, 132, 64, 255),  // copper
     IM_COL32(86, 168, 156, 255),  // verdigris
     IM_COL32(204, 120, 152, 255), // rose
-    IM_COL32(222, 212, 182, 255), // bone
-    IM_COL32(106, 112, 196, 255), // lapis
-    IM_COL32(168, 166, 82, 255),  // olive
-    IM_COL32(150, 200, 226, 255), // frost
 };
 constexpr size_t kPlayerColorCount = sizeof(kPlayerColors) / sizeof(kPlayerColors[0]);
 
