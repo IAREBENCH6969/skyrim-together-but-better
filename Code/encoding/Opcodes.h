@@ -116,5 +116,6 @@ enum ServerOpcode : unsigned char
     kNotifyRemoveWaypoint,
     kNotifySetTimeResult,
     kNotifyActionEvents,
+    kNotifyPlayerPositions,
     kServerOpcodeMax
 };

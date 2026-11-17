@@ -1,4 +1,4 @@
-#include <Services/MapService.h>
+﻿#include <Services/MapService.h>
 
 #include <World.h>
 
@@ -7,6 +7,7 @@
 #include <Events/RemoveWaypointEvent.h>
 #include <Messages/NotifySetWaypoint.h>
 #include <Messages/NotifyRemoveWaypoint.h>
+#include <Messages/NotifyPlayerPositions.h>
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Services/ImguiService.h>
@@ -59,35 +60,117 @@ bool ProjectWithCamera(const NiCamera* apCamera, const NiPoint3& acPoint, NiPoin
                                         &aScreen.z, 1e-5f);
 }
 
-// One colour per player, readable on the compass and the map.
+// One colour per player, muted like Skyrim's own UI (no neon), readable on the compass and the snowy map.
 ImU32 PlayerColor(uint32_t aPlayerId) noexcept
 {
-    static constexpr ImU32 s_colors[] = {IM_COL32(64, 170, 255, 255), IM_COL32(255, 196, 64, 255), IM_COL32(120, 220, 110, 255),
-                                         IM_COL32(235, 110, 220, 255), IM_COL32(255, 130, 80, 255), IM_COL32(150, 130, 255, 255)};
+    static constexpr ImU32 s_colors[] = {IM_COL32(212, 175, 92, 255),  // old gold
+                                         IM_COL32(112, 164, 204, 255), // steel blue
+                                         IM_COL32(196, 92, 78, 255),   // dragon's-blood red
+                                         IM_COL32(128, 172, 104, 255), // moss green
+                                         IM_COL32(168, 128, 196, 255), // amethyst
+                                         IM_COL32(204, 134, 82, 255)}; // copper
     return s_colors[aPlayerId % (sizeof(s_colors) / sizeof(s_colors[0]))];
 }
 
-// A map pin with its tip at acTip.
-void DrawPin(ImDrawList* apDraw, ImVec2 acTip, float aSize, ImU32 aColor) noexcept
+// Skyrim's text colour (off-white) and the near-black of its icon outlines.
+constexpr ImU32 kTextColor = IM_COL32(236, 232, 220, 255);
+constexpr ImU32 kOutlineColor = IM_COL32(16, 14, 12, 235);
+
+ImU32 WithAlpha(ImU32 aColor, float aAlpha) noexcept
 {
-    const ImVec2 cHead{acTip.x, acTip.y - aSize * 1.25f};
-    const float cRadius = aSize * 0.62f;
-    apDraw->AddCircleFilled({cHead.x + 1.f, cHead.y + 1.5f}, cRadius + 1.5f, IM_COL32(0, 0, 0, 140), 24);
-    apDraw->AddTriangleFilled({cHead.x - cRadius * 0.8f, cHead.y + cRadius * 0.45f}, {cHead.x + cRadius * 0.8f, cHead.y + cRadius * 0.45f}, acTip, aColor);
-    apDraw->AddCircleFilled(cHead, cRadius, aColor, 24);
-    apDraw->AddCircle(cHead, cRadius, IM_COL32(20, 18, 16, 230), 24, 1.5f);
-    apDraw->AddLine({cHead.x - cRadius * 0.8f, cHead.y + cRadius * 0.45f}, acTip, IM_COL32(20, 18, 16, 230), 1.5f);
-    apDraw->AddLine({cHead.x + cRadius * 0.8f, cHead.y + cRadius * 0.45f}, acTip, IM_COL32(20, 18, 16, 230), 1.5f);
-    apDraw->AddCircleFilled(cHead, cRadius * 0.38f, IM_COL32(245, 242, 232, 255), 16);
+    const uint32_t cAlpha = static_cast<uint32_t>(((aColor >> IM_COL32_A_SHIFT) & 0xFF) * std::clamp(aAlpha, 0.f, 1.f));
+    return (aColor & ~IM_COL32_A_MASK) | (cAlpha << IM_COL32_A_SHIFT);
 }
 
-void DrawLabel(ImDrawList* apDraw, ImVec2 acCenterTop, const char* acpText, float aSize, ImU32 aColor) noexcept
+// aColor blended towards white (aAmount > 0) or black (aAmount < 0).
+ImU32 Shade(ImU32 aColor, float aAmount) noexcept
 {
-    ImFont* pFont = ImGui::GetFont();
-    const ImVec2 cSize = pFont->CalcTextSizeA(aSize, FLT_MAX, 0.f, acpText);
-    const ImVec2 cPos{acCenterTop.x - cSize.x * 0.5f, acCenterTop.y};
-    apDraw->AddText(pFont, aSize, {cPos.x + 1.f, cPos.y + 1.f}, IM_COL32(0, 0, 0, 230), acpText);
-    apDraw->AddText(pFont, aSize, cPos, aColor, acpText);
+    const ImVec4 c = ImGui::ColorConvertU32ToFloat4(aColor);
+    const float cTarget = aAmount > 0.f ? 1.f : 0.f;
+    const float t = std::abs(aAmount);
+    return ImGui::ColorConvertFloat4ToU32({c.x + (cTarget - c.x) * t, c.y + (cTarget - c.y) * t, c.z + (cTarget - c.z) * t, c.w});
+}
+
+ImVec2 Add(ImVec2 a, ImVec2 b) noexcept { return {a.x + b.x, a.y + b.y}; }
+ImVec2 Mul(ImVec2 a, float f) noexcept { return {a.x * f, a.y * f}; }
+
+// A marker shaped like the game's own custom marker: a long kite pointing down at acTip, outlined in near-black,
+// with a lighter inner facet. aHeight is the whole icon's height.
+void DrawKite(ImDrawList* apDraw, ImVec2 acTip, float aHeight, ImU32 aColor, float aAlpha = 1.f) noexcept
+{
+    const float h = aHeight;
+    const ImVec2 cTop{acTip.x, acTip.y - h};
+    const ImVec2 cLeft{acTip.x - h * 0.34f, acTip.y - h * 0.64f};
+    const ImVec2 cRight{acTip.x + h * 0.34f, acTip.y - h * 0.64f};
+    const float o = std::max(1.5f, h * 0.07f); // outline width
+
+    // Soft shadow, then the dark outline (a slightly bigger kite), then the colour.
+    const ImVec2 cShadow{1.f, 2.f};
+    const ImVec2 cShadowKite[] = {Add(cTop, cShadow), Add(cRight, cShadow), Add(acTip, cShadow), Add(cLeft, cShadow)};
+    apDraw->AddConvexPolyFilled(cShadowKite, 4, WithAlpha(IM_COL32(0, 0, 0, 110), aAlpha));
+    const ImVec2 cOuter[] = {{cTop.x, cTop.y - o}, {cRight.x + o, cRight.y}, {acTip.x, acTip.y + o * 1.4f}, {cLeft.x - o, cLeft.y}};
+    apDraw->AddConvexPolyFilled(cOuter, 4, WithAlpha(kOutlineColor, aAlpha));
+    const ImVec2 cKite[] = {cTop, cRight, acTip, cLeft};
+    apDraw->AddConvexPolyFilled(cKite, 4, WithAlpha(aColor, aAlpha));
+
+    // Left half lit, right half in shade: the bevel Skyrim's icons have.
+    const ImVec2 cMid{acTip.x, acTip.y - h * 0.56f};
+    const ImVec2 cLit[] = {cTop, cMid, acTip, cLeft};
+    apDraw->AddConvexPolyFilled(cLit, 4, WithAlpha(Shade(aColor, 0.28f), aAlpha));
+    const ImVec2 cDark[] = {cTop, cRight, acTip, cMid};
+    apDraw->AddConvexPolyFilled(cDark, 4, WithAlpha(Shade(aColor, -0.22f), aAlpha));
+
+    // The inner "V" facet, like the native marker's.
+    const ImVec2 cInner[] = {{acTip.x, acTip.y - h * 0.82f}, {acTip.x + h * 0.15f, acTip.y - h * 0.6f}, {acTip.x, acTip.y - h * 0.24f}, {acTip.x - h * 0.15f, acTip.y - h * 0.6f}};
+    apDraw->AddConvexPolyFilled(cInner, 4, WithAlpha(Shade(aColor, -0.45f), aAlpha));
+    apDraw->AddPolyline(cInner, 4, WithAlpha(Shade(aColor, 0.55f), aAlpha * 0.9f), ImDrawFlags_Closed, std::max(1.f, h * 0.035f));
+}
+
+// Another player, like the game's own player arrow: an arrowhead with a notched tail, pointing along acDirection
+// (a unit vector on screen), centred on acCenter. aSize is the length from the centre to the tip.
+void DrawPlayerArrow(ImDrawList* apDraw, ImVec2 acCenter, ImVec2 acDirection, float aSize, ImU32 aColor, float aAlpha) noexcept
+{
+    const ImVec2 d = acDirection;
+    const ImVec2 p{-d.y, d.x}; // perpendicular
+    const ImVec2 cTip = Add(acCenter, Mul(d, aSize));
+    const ImVec2 cBackLeft = Add(acCenter, Add(Mul(d, -aSize * 0.62f), Mul(p, -aSize * 0.62f)));
+    const ImVec2 cBackRight = Add(acCenter, Add(Mul(d, -aSize * 0.62f), Mul(p, aSize * 0.62f)));
+    const ImVec2 cNotch = Add(acCenter, Mul(d, -aSize * 0.22f));
+    const ImVec2 cOutline[] = {cTip, cBackRight, cNotch, cBackLeft};
+    const float cWidth = std::max(1.5f, aSize * 0.14f);
+
+    // Shadow and thick dark outline under the fill (the shape is notched, so it is filled as two halves).
+    const ImVec2 cShadow{1.f, 2.f};
+    const ImVec2 cShadowShape[] = {Add(cTip, cShadow), Add(cBackRight, cShadow), Add(cNotch, cShadow), Add(cBackLeft, cShadow)};
+    apDraw->AddPolyline(cShadowShape, 4, WithAlpha(IM_COL32(0, 0, 0, 110), aAlpha), ImDrawFlags_Closed, cWidth * 1.6f);
+    apDraw->AddPolyline(cOutline, 4, WithAlpha(kOutlineColor, aAlpha), ImDrawFlags_Closed, cWidth * 1.6f);
+    apDraw->AddTriangleFilled(cTip, cNotch, cBackLeft, WithAlpha(Shade(aColor, 0.3f), aAlpha));
+    apDraw->AddTriangleFilled(cTip, cBackRight, cNotch, WithAlpha(Shade(aColor, -0.2f), aAlpha));
+    apDraw->AddPolyline(cOutline, 4, WithAlpha(kOutlineColor, aAlpha), ImDrawFlags_Closed, std::max(1.f, cWidth * 0.5f));
+}
+
+ImFont* ThemeFont() noexcept
+{
+    ImFont* pFont = World::Get().ctx().at<ImguiService>().GetThemeFont();
+    return pFont ? pFont : ImGui::GetFont();
+}
+
+enum class Anchor
+{
+    Above, // text sits above the point
+    Below  // text hangs below the point
+};
+
+// Text like Skyrim's map and HUD labels: off-white Futura Condensed with a soft dark edge, centred on acPoint.
+void DrawSkyrimText(ImDrawList* apDraw, ImVec2 acPoint, Anchor aAnchor, const std::string& acText, float aSize, ImU32 aColor = kTextColor, float aAlpha = 1.f) noexcept
+{
+    ImFont* pFont = ThemeFont();
+    const ImVec2 cSize = pFont->CalcTextSizeA(aSize, FLT_MAX, 0.f, acText.c_str());
+    const ImVec2 cPos{std::round(acPoint.x - cSize.x * 0.5f), std::round(aAnchor == Anchor::Above ? acPoint.y - cSize.y : acPoint.y)};
+    const ImU32 cEdge = WithAlpha(IM_COL32(0, 0, 0, 150), aAlpha);
+    for (const ImVec2 cOffset : {ImVec2{-1.f, 0.f}, ImVec2{1.f, 0.f}, ImVec2{0.f, -1.f}, ImVec2{0.f, 1.f}, ImVec2{1.5f, 1.5f}})
+        apDraw->AddText(pFont, aSize, Add(cPos, cOffset), cEdge, acText.c_str());
+    apDraw->AddText(pFont, aSize, cPos, WithAlpha(aColor, aAlpha), acText.c_str());
 }
 
 String NameOf(uint32_t aPlayerId) noexcept
@@ -114,6 +197,7 @@ MapService::MapService(World& aWorld, entt::dispatcher& aDispatcher, TransportSe
 {
     m_playerNotifySetWaypointConnection = m_dispatcher.sink<NotifySetWaypoint>().connect<&MapService::OnNotifySetWaypoint>(this);
     m_playerNotifyRemoveWaypointConnection = m_dispatcher.sink<NotifyRemoveWaypoint>().connect<&MapService::OnNotifyRemoveWaypoint>(this);
+    m_playerPositionsConnection = m_dispatcher.sink<NotifyPlayerPositions>().connect<&MapService::OnNotifyPlayerPositions>(this);
     m_playerSetWaypointConnection = m_dispatcher.sink<SetWaypointEvent>().connect<&MapService::OnSetWaypoint>(this);
     m_playerRemoveWaypointConnection = m_dispatcher.sink<RemoveWaypointEvent>().connect<&MapService::OnRemoveWaypoint>(this);
     m_disconnectedConnection = m_dispatcher.sink<DisconnectedEvent>().connect<&MapService::OnDisconnected>(this);
@@ -175,11 +259,35 @@ void MapService::OnNotifyRemoveWaypoint(const NotifyRemoveWaypoint& acMessage) n
 void MapService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_markers.clear();
+    m_players.clear();
+}
+
+void MapService::OnNotifyPlayerPositions(const NotifyPlayerPositions& acMessage) noexcept
+{
+    ModSystem& modSystem = m_world.Get().GetModSystem();
+    const uint32_t cSelf = m_transport.GetLocalPlayerId();
+
+    TiltedPhoques::Map<uint32_t, PlayerOnMap> players;
+    for (const auto& entry : acMessage.Players)
+    {
+        if (entry.PlayerId == cSelf)
+            continue;
+        PlayerOnMap player{};
+        player.Position.x = entry.Position.x;
+        player.Position.y = entry.Position.y;
+        player.Position.z = entry.Position.z;
+        player.WorldSpaceId = modSystem.GetGameId(entry.WorldSpaceId);
+        player.Heading = entry.Heading;
+        player.Inside = entry.Inside;
+        if (player.WorldSpaceId)
+            players[entry.PlayerId] = player;
+    }
+    m_players = std::move(players);
 }
 
 void MapService::OnDraw() noexcept
 {
-    if (m_markers.empty() || !PlayerCharacter::Get())
+    if ((m_markers.empty() && m_players.empty()) || !PlayerCharacter::Get())
         return;
     UI* pUI = UI::Get();
     if (!pUI)
@@ -187,7 +295,7 @@ void MapService::OnDraw() noexcept
 
     if (pUI->GetMenuOpen("MapMenu"))
         DrawOnMap();
-    else if (pUI->numPausesGame == 0 && !pUI->GetMenuOpen("Dialogue Menu") && !pUI->GetMenuOpen("Console"))
+    else if (!m_markers.empty() && pUI->numPausesGame == 0 && !pUI->GetMenuOpen("Dialogue Menu") && !pUI->GetMenuOpen("Console"))
         DrawOnCompass();
 }
 
@@ -202,10 +310,11 @@ void MapService::DrawOnCompass() noexcept
 
     const float cWidth = static_cast<float>(pWindow->uiWindowWidth);
     const float cHeight = static_cast<float>(pWindow->uiWindowHeight);
-    const float cScale = std::max(0.75f, cHeight / 1080.f);
     const float cCenterX = cWidth * 0.5f;
     const float cCompassY = cHeight * kCompassCenterY;
     const float cHalfWidth = cWidth * kCompassHalfWidth;
+    // The size of the game's own compass icons.
+    const float cIconHeight = cHeight * 0.029f;
     ImDrawList* pDraw = ImGui::GetBackgroundDrawList();
 
     // The compass follows the camera's heading.
@@ -226,16 +335,17 @@ void MapService::DrawOnCompass() noexcept
         if (std::abs(delta) > kCompassHalfAngle)
             continue;
 
+        // Centred on the compass bar, like the game's icons.
         const float cX = cCenterX + delta / kCompassHalfAngle * cHalfWidth;
         const ImU32 cColor = PlayerColor(playerId);
-        DrawPin(pDraw, {cX, cCompassY + 6.f * cScale}, 9.f * cScale, cColor);
-        // Name and distance under the compass while it's roughly straight ahead.
+        DrawKite(pDraw, {cX, cCompassY + cIconHeight * 0.5f}, cIconHeight, cColor);
+        // Whose it is and how far, under the compass, while it's roughly straight ahead.
         if (std::abs(delta) < 12.f)
         {
             const float cDx = marker.Position.x - pPlayer->position.x;
             const float cDy = marker.Position.y - pPlayer->position.y;
             const int cMeters = static_cast<int>(std::sqrt(cDx * cDx + cDy * cDy) / 70.f);
-            DrawLabel(pDraw, {cX, cCompassY + 12.f * cScale}, fmt::format("{}  {} m", NameOf(playerId).c_str(), cMeters).c_str(), ImGui::GetFontSize() * 1.15f * cScale, cColor);
+            DrawSkyrimText(pDraw, {cX, cCompassY + cIconHeight * 0.75f}, Anchor::Below, fmt::format("{}  \xC2\xB7  {} m", NameOf(playerId).c_str(), cMeters), cHeight * 0.024f);
         }
     }
 }
@@ -247,7 +357,6 @@ void MapService::DrawOnMap() noexcept
         return;
     const float cWidth = static_cast<float>(pWindow->uiWindowWidth);
     const float cHeight = static_cast<float>(pWindow->uiWindowHeight);
-    const float cScale = std::max(0.75f, cHeight / 1080.f);
     const uint32_t cWorldSpaceId = CurrentWorldSpaceId();
     ImDrawList* pDraw = ImGui::GetBackgroundDrawList();
     // The world map is drawn through the main camera, moved above the map.
@@ -255,24 +364,49 @@ void MapService::DrawOnMap() noexcept
     if (!pMapCamera)
         return;
 
+    // World position to screen pixels; false if it's off the screen.
+    auto toScreen = [&](const NiPoint3& acPosition, ImVec2& aScreen) {
+        NiPoint3 screen{};
+        if (!ProjectWithCamera(pMapCamera, acPosition, screen) || screen.z < 0.f)
+            return false;
+        aScreen = {cWidth * screen.x, cHeight * (1.f - screen.y)};
+        return screen.x >= 0.f && screen.x <= 1.f && screen.y >= 0.f && screen.y <= 1.f;
+    };
+    // The world map shows the worldspace the player is in (or the one outside, when inside).
+    auto shown = [&](uint32_t aWorldSpaceId) { return !cWorldSpaceId || aWorldSpaceId == cWorldSpaceId; };
+
+    // Other players first, so markers sit on top of them.
+    for (const auto& [playerId, player] : m_players)
+    {
+        ImVec2 center{};
+        if (!shown(player.WorldSpaceId) || !toScreen(player.Position, center))
+            continue;
+
+        // Which way they face, on screen: project a point a little ahead of them.
+        NiPoint3 ahead = player.Position;
+        ahead.x += std::sin(player.Heading) * 2000.f;
+        ahead.y += std::cos(player.Heading) * 2000.f;
+        ImVec2 aheadScreen{};
+        toScreen(ahead, aheadScreen);
+        ImVec2 direction{aheadScreen.x - center.x, aheadScreen.y - center.y};
+        const float cLength = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+        direction = cLength > 0.5f ? ImVec2{direction.x / cLength, direction.y / cLength} : ImVec2{0.f, -1.f};
+
+        const float cAlpha = player.Inside ? 0.6f : 1.f;
+        const float cSize = cHeight * 0.0165f;
+        DrawPlayerArrow(pDraw, center, direction, cSize, PlayerColor(playerId), cAlpha);
+        const std::string cName = player.Inside ? fmt::format("{} (inside)", NameOf(playerId).c_str()) : std::string(NameOf(playerId).c_str());
+        DrawSkyrimText(pDraw, {center.x, center.y + cSize * 1.2f}, Anchor::Below, cName, cHeight * 0.024f, kTextColor, cAlpha);
+    }
+
     for (const auto& [playerId, marker] : m_markers)
     {
-        // The world map shows the worldspace the player is in (or the one outside, when inside).
-        if (cWorldSpaceId && marker.WorldSpaceId != cWorldSpaceId)
+        ImVec2 tip{};
+        if (!shown(marker.WorldSpaceId) || !toScreen(marker.Position, tip))
             continue;
 
-        NiPoint3 screen{};
-        if (!ProjectWithCamera(pMapCamera, marker.Position, screen))
-            continue;
-        if (screen.z < 0.f || screen.x < 0.f || screen.x > 1.f || screen.y < 0.f || screen.y > 1.f)
-            continue;
-
-        const ImVec2 cTip{cWidth * screen.x, cHeight * (1.f - screen.y)};
-        const ImU32 cColor = PlayerColor(playerId);
-        const float cPinSize = 13.f * cScale;
-        const float cTextSize = ImGui::GetFontSize() * 1.2f * cScale;
-        DrawPin(pDraw, cTip, cPinSize, cColor);
-        // Above the pin: below it is where the map writes the player's own "Current Location".
-        DrawLabel(pDraw, {cTip.x, cTip.y - cPinSize * 2.f - cTextSize - 2.f * cScale}, fmt::format("{}'s marker", NameOf(playerId).c_str()).c_str(), cTextSize, cColor);
+        const float cIconHeight = cHeight * 0.034f;
+        DrawKite(pDraw, tip, cIconHeight, PlayerColor(playerId));
+        DrawSkyrimText(pDraw, {tip.x, tip.y - cIconHeight * 1.12f}, Anchor::Above, fmt::format("{}'s Marker", NameOf(playerId).c_str()), cHeight * 0.026f);
     }
 }

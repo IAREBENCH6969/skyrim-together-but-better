@@ -15,6 +15,7 @@
 
 #include <Messages/NotifySetWaypoint.h>
 #include <Messages/NotifyRemoveWaypoint.h>
+#include <Messages/NotifyPlayerPositions.h>
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/ServerMessageFactory.h>
 #include <Structs/Vector2_NetQuantize.h>
@@ -646,5 +647,33 @@ TEST_CASE("Map marker messages", "[encoding.packets]")
         reader.ReadBits(trash, 8);
         recvMessage.DeserializeRaw(reader);
         REQUIRE(sendMessage == recvMessage);
+    }
+
+    GIVEN("NotifyPlayerPositions")
+    {
+        NotifyPlayerPositions sendMessage, recvMessage;
+        NotifyPlayerPositions::Entry outside{};
+        outside.PlayerId = 3;
+        outside.WorldSpaceId = GameId(0, 0x3C);
+        outside.Position.x = 17230.f;
+        outside.Position.y = -44408.f;
+        outside.Position.z = -128.f;
+        outside.Heading = 1.25f;
+        NotifyPlayerPositions::Entry inside = outside;
+        inside.PlayerId = 600;
+        inside.Inside = true;
+        sendMessage.Players.push_back(outside);
+        sendMessage.Players.push_back(inside);
+
+        Buffer buff(1000);
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8);
+        recvMessage.DeserializeRaw(reader);
+        REQUIRE(sendMessage == recvMessage);
+        REQUIRE(recvMessage.Players.size() == 2);
+        REQUIRE(recvMessage.Players[1].Inside);
     }
 }
