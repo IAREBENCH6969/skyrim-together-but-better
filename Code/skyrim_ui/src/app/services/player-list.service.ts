@@ -13,6 +13,9 @@ import { PopupNotificationService } from './popup-notification.service';
   providedIn: 'root',
 })
 export class PlayerListService implements OnDestroy {
+  // How long the server keeps a party invite (PartyService::OnPartyInvite).
+  private static readonly INVITE_EXPIRY_MS = 60000;
+
   public playerList = new BehaviorSubject<PlayerList | undefined>(undefined);
 
   private debugSubscription: Subscription;
@@ -101,11 +104,12 @@ export class PlayerListService implements OnDestroy {
   private onMemberKicked() {
     this.memberKickedSubscription =
       this.clientService.memberKickedChange.subscribe((playerId: number) => {
-        const playerList = this.getPlayerList();
-        const players = playerList.players.find(
-          player => player.id !== playerId,
-        );
-        players.hasBeenInvited = false;
+        // The kicked player can be invited again.
+        const player = this.getPlayerById(playerId);
+        if (player) {
+          player.hasBeenInvited = false;
+          this.updatePlayerList();
+        }
       });
   }
 
@@ -177,6 +181,16 @@ export class PlayerListService implements OnDestroy {
       this.updatePlayerList();
 
       this.clientService.createPartyInvite(inviteeId);
+
+      // The server drops an invite after 60 seconds. If the player hasn't joined by then (declined, missed it, or
+      // started their own party), let them be invited again instead of greying the button out for good.
+      setTimeout(() => {
+        const invitee = this.getPlayerById(inviteeId);
+        if (invitee && invitee.hasBeenInvited) {
+          invitee.hasBeenInvited = false;
+          this.updatePlayerList();
+        }
+      }, PlayerListService.INVITE_EXPIRY_MS);
     }
   }
 
