@@ -8,6 +8,7 @@ struct ServerSettings;
 struct NotifyRevive;
 struct TESObjectREFR;
 struct TESBoundObject;
+struct Actor;
 
 /**
  * @brief Reviving downed players with healing potions.
@@ -52,6 +53,8 @@ private:
     void OnNotifyRevive(const NotifyRevive& acMessage) noexcept;
     // Gets our copies of revived players back on their feet (see m_standingUp).
     void UpdateStandingUp() noexcept;
+    void UpdateGoingDown() noexcept;
+    Actor* CopyOfPlayer(uint32_t aPlayerId) noexcept;
     // Draws a revive marker above every downed player (ImGui, every frame), so they're easy to find.
     void OnDraw() noexcept;
 
@@ -74,6 +77,9 @@ private:
         int Sends{};
     };
     TiltedPhoques::Map<uint32_t, StandingUp> m_standingUp;
+    // Downed players whose copy is being watched: if it collapses flat it's put back in the bleedout kneel (see
+    // UpdateGoingDown). Started is when the next step may run.
+    TiltedPhoques::Map<uint32_t, StandingUp> m_goingDown;
     std::chrono::steady_clock::time_point m_nextUpdate{};
     bool m_activateWasDown{};
     // An E press was used for a revive: the game's own activation stays off until E is let go, so the same press
