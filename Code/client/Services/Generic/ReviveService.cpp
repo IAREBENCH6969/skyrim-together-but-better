@@ -217,6 +217,79 @@ TESBoundObject* ReviveService::FindHealingPotion(float& aHealth) noexcept
 
 extern thread_local bool g_forceAnimation;
 
+Actor* ReviveService::CopyOfPlayer(uint32_t aPlayerId) noexcept
+{
+    for (auto entity : m_world.view<PlayerComponent, FormIdComponent>())
+    {
+        if (m_world.get<PlayerComponent>(entity).Id == aPlayerId)
+            return Cast<Actor>(TESForm::GetById(m_world.get<FormIdComponent>(entity).Id));
+    }
+    return nullptr;
+}
+
+// How high one of an actor's bones is above its feet, from its skeleton (what you actually see). Kneeling in bleedout
+// the head is about 50 up and the pelvis about 32; lying flat both are about 10; sitting slumped the pelvis is about 5.
+// -1 without that bone.
+static float BoneHeight(Actor* apActor, const char* acpBone) noexcept
+{
+    NiNode* pRoot = apActor ? apActor->GetNiNode() : nullptr;
+    if (!pRoot)
+        return -1.f;
+    BSFixedString name(acpBone);
+    NiAVObject* pHead = pRoot->GetByName(name);
+    if (!pHead)
+        return -1.f;
+    const float* pWorld = reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(pHead) + 0xA0);
+    return pWorld[2] - apActor->position.z;
+}
+
+static bool SendForcedAnimationEvent(Actor* apActor, const char* acpEvent) noexcept
+{
+    BSFixedString event(acpEvent);
+    g_forceAnimation = true;
+    const bool cAccepted = apActor->SendAnimationEvent(&event);
+    g_forceAnimation = false;
+    return cAccepted;
+}
+
+void ReviveService::UpdateGoingDown() noexcept
+{
+    // Our copy of a downed player goes into bleedout on its own (its health reaches 0), but it sometimes collapses
+    // flat on the floor a moment later instead of kneeling like the downed player sees themselves. When it has, reset
+    // it to its default state and start the game's bleedout kneel from there.
+    const auto cNow = std::chrono::steady_clock::now();
+    for (const auto& [playerId, deadline] : m_downedPlayers)
+    {
+        Actor* pActor = CopyOfPlayer(playerId);
+        if (!pActor)
+            continue;
+        StandingUp& fixing = m_goingDown[playerId];
+        if (cNow < fixing.Started)
+            continue; // waiting for a step to take effect
+
+        if (fixing.Sends % 2 == 1)
+        {
+            // Second half: from the default state, start the bleedout kneel.
+            const bool cAccepted = SendForcedAnimationEvent(pActor, "BleedOutStart") || SendForcedAnimationEvent(pActor, "BleedoutStart");
+            fixing.Sends++;
+            fixing.Started = cNow + 3s;
+            spdlog::info("[ReviveService]: player {}'s copy: bleedout kneel started again ({})", playerId, cAccepted ? "accepted" : "not accepted");
+            continue;
+        }
+
+        // Collapsed: lying flat, or slumped with the pelvis on the floor.
+        const float cHead = BoneHeight(pActor, "NPC Head [Head]");
+        const float cPelvis = BoneHeight(pActor, "NPC Pelvis [Pelv]");
+        const bool cCollapsed = cHead >= 0.f && cPelvis >= 0.f && (cHead < 30.f || cPelvis < 20.f);
+        if (!cCollapsed || fixing.Sends >= 6)
+            continue;
+        const bool cAccepted = SendForcedAnimationEvent(pActor, "IdleForceDefaultState");
+        fixing.Sends++;
+        fixing.Started = cNow + 300ms;
+        spdlog::info("[ReviveService]: player {}'s copy collapsed (head {:.0f}, pelvis {:.0f}), resetting it ({})", playerId, cHead, cPelvis, cAccepted ? "accepted" : "not accepted");
+    }
+}
+
 void ReviveService::UpdateStandingUp() noexcept
 {
     const auto cNow = std::chrono::steady_clock::now();
@@ -267,6 +340,8 @@ void ReviveService::OnUpdate(const UpdateEvent&) noexcept
 {
     if (!m_standingUp.empty())
         UpdateStandingUp();
+    if (!m_downedPlayers.empty())
+        UpdateGoingDown();
 
     const bool cActivateDown = (GetAsyncKeyState(kActivateKey) & 0x8000) != 0;
 
@@ -339,6 +414,7 @@ void ReviveService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_downedPlayers.clear();
     m_nextHint.clear();
     m_standingUp.clear();
+    m_goingDown.clear();
 }
 
 void ReviveService::OnServerSettings(const ServerSettings& acSettings) noexcept
@@ -352,12 +428,15 @@ void ReviveService::OnNotifyRevive(const NotifyRevive& acMessage) noexcept
     {
     case ReviveEvent::Downed:
         m_downedPlayers[acMessage.PlayerId] = std::chrono::steady_clock::now() + std::chrono::milliseconds(static_cast<int64_t>(acMessage.Seconds * 1000.f));
+        m_goingDown[acMessage.PlayerId] = {std::chrono::steady_clock::now() + 1500ms, 0};
+        m_standingUp.erase(acMessage.PlayerId);
         m_nextHint.erase(acMessage.PlayerId);
         spdlog::info("[ReviveService]: player {} is down", acMessage.PlayerId);
         Utils::ShowHudMessage(String(fmt::format("{} is down! Get to them and press E to use a healing potion", NameOf(acMessage.PlayerId))));
         break;
     case ReviveEvent::Up:
         m_downedPlayers.erase(acMessage.PlayerId);
+        m_goingDown.erase(acMessage.PlayerId);
         m_standingUp[acMessage.PlayerId] = {std::chrono::steady_clock::now(), 0};
         spdlog::info("[ReviveService]: player {} is up", acMessage.PlayerId);
         break;
