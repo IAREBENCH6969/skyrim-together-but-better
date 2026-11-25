@@ -1,3 +1,22 @@
+# Skyrim Together But Better
+
+An unofficial build of [Skyrim Together Reborn](https://github.com/tiltedphoques/TiltedEvolution) (TiltedEvolution)
+with extra co-op features. All credit for Skyrim Together goes to the Tilted Phoques team; this repository only adds
+the changes below on top of their `dev` branch, under the same GPL-3.0 license.
+
+**Added in this build**
+- **Trading:** trade items and gold with another player from the F2 player list; both players must accept.
+- **Revive:** at 0 health you go down for 30 seconds; a teammate presses E to revive you with one of their healing potions.
+- **Shared map markers:** everyone sees each other's custom map marker, in that player's colour.
+- **Players on the map and compass:** other players show as coloured arrows on the world map and dots on the compass.
+- **Crafted potions and poisons sync** between players.
+- **Steam join:** friends join the host's session from the Steam friends list, no port forwarding needed.
+- **Party re-invite fix:** a player can be invited again after missing or declining an invite.
+
+Clients built from this repository only connect to servers built from it.
+`Tools/portable-mo2` has the scripts for a ready-to-play portable Mod Organizer 2 package.
+
+---
 # Skyrim Together
 #### codename "TiltedEvolution"
 [![GitHub release](https://img.shields.io/github/v/release/tiltedphoques/TiltedEvolution?color=23314E)](https://github.com/tiltedphoques/TiltedEvolution/releases)
