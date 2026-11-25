@@ -14,7 +14,31 @@ the changes below on top of their `dev` branch, under the same GPL-3.0 license.
 - **Party re-invite fix:** a player can be invited again after missing or declining an invite.
 
 Clients built from this repository only connect to servers built from it.
-`Tools/portable-mo2` has the scripts for a ready-to-play portable Mod Organizer 2 package.
+``Tools/portable-mo2`` has the scripts for a ready-to-play portable Mod Organizer 2 package.
+
+## Requirements
+
+- **Skyrim Special Edition or Anniversary Edition on Steam, game version 1.7.104.**
+- **[SKSE64](https://www.nexusmods.com/skyrimspecialedition/mods/30379)** (Anniversary Edition build 2.3.1). Its authors don't allow
+  re-uploading it, so get it from that page.
+- **[Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444)** by meh321: the newest
+  "All in one" file that includes `versionlib-1-7-104-0.bin`. The older "All in one (all game versions)" file stops at 1.6.1170.
+- **[Mod Organizer 2](https://github.com/ModOrganizer2/modorganizer/releases)** (recommended).
+- Don't run the original Skyrim Together Reborn at the same time: this build replaces it, and the two can't play together.
+
+## Download and install
+
+Download the latest build from the [Releases](https://github.com/IAREBENCH6969/skyrim-together-but-better/releases) page.
+
+1. In Mod Organizer 2, install SKSE64 (loader and DLL next to `SkyrimSE.exe`) and Address Library, and untick the
+   original Skyrim Together Reborn if you have it.
+2. Install the "Skyrim Together Reborn - Coop Test Build" folder from the download as a mod and tick it, along with
+   `SkyrimTogether.esp` and `SkyrimTogetherQuestPatches.esp`.
+3. Add `SkyrimTogetherReborn\SkyrimTogether.exe` (inside that mod) as an executable and start the game with it from MO2.
+4. Remove other SKSE plugins from your game's `Data\SKSE\Plugins` folder if you get "failed to open address library file".
+
+Hosting and joining (server, F2 overlay, Steam join, direct IP) are described in
+[Tools/portable-mo2/README-package.txt](Tools/portable-mo2/README-package.txt), under "Playing together".
 
 ---
 # Skyrim Together
